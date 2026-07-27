@@ -166,6 +166,6 @@ Face Tokenizers training or alignment feature.
 
 ## License
 
-MIT
+The `basetenkenizer` package is licensed under the MIT License.
 
 [View `basetenkenizer` on PyPI](https://pypi.org/project/basetenkenizer/)
