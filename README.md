@@ -3,6 +3,10 @@
 High-performance, Rust-backed BPE tokenization for inference. The Python
 package is named `basetenkenizer`.
 
+## Performance
+
+![Kimi K3 tokenization latency comparison](assets/basetenkenizer_vs_gigatokenfastokenstiktoken.png)
+
 ## Install
 
 ```bash
