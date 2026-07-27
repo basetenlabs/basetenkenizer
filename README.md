@@ -167,3 +167,5 @@ Face Tokenizers training or alignment feature.
 ## License
 
 MIT
+
+[View `basetenkenizer` on PyPI](https://pypi.org/project/basetenkenizer/)
