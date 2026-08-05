@@ -169,3 +169,21 @@ Face Tokenizers training or alignment feature.
 The `basetenkenizer` package is licensed under the MIT License.
 
 [View `basetenkenizer` on PyPI](https://pypi.org/project/basetenkenizer/)
+
+## Acknowledgements and upstream contributions
+
+Basetenkenizer builds on work from
+[Crusoe's fastokens](https://github.com/crusoecloud/fastokens),
+[gigatoken](https://github.com/marcelroed/gigatoken), and
+[MiniJinja](https://github.com/mitsuhiko/minijinja). We're proud to contribute
+to the open-source community and grateful for the work that made this project
+possible. In addition to these libraries, various other libraries are used as
+optional or required dependencies.
+
+While developing Basetenkenizer, we also contributed improvements upstream:
+
+- [crusoecloud/fastokens#8: add CI for cross-compiled PyO3 builds and upgrade PyO3](https://github.com/crusoecloud/fastokens/pull/8)
+- [crusoecloud/fastokens#9: add a Tokio and PyO3 async interface](https://github.com/crusoecloud/fastokens/pull/9)
+- [mitsuhiko/minijinja#913: render `None` and booleans like Jinja2](https://github.com/mitsuhiko/minijinja/pull/913)
+- [mitsuhiko/minijinja#912: reset loop-local variables between iterations](https://github.com/mitsuhiko/minijinja/pull/912)
+- [huggingface/tokenizers#1968: add a PCRE2 backend and regex sharding for faster tokenization](https://github.com/huggingface/tokenizers/pull/1968)
