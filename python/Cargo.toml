@@ -1,0 +1,22 @@
+[package]
+name = "basetenkenizer-python"
+version.workspace = true
+edition.workspace = true
+description = ""
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+basetenkenizer = { path = ".." }
+numpy = "0.25"
+pyo3 = {version = "0.25", features = ["extension-module", "abi3-py310"] }
+pyo3-async-runtimes = { version = "0.25", features = ["tokio-runtime"] }
+pythonize = "0.25"
+rayon = "1"
+serde_json = { version = "1", features = ["preserve_order"] }

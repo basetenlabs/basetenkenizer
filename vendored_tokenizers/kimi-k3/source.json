@@ -1,0 +1,19 @@
+{
+  "repository": "moonshotai/Kimi-K3",
+  "revision": "c5d1dd4c428bd1ce8b88c5044f3b6ccde9e3b721",
+  "tokenizer_json": {
+    "generated_by": "fastokens.tiktoken_model_to_tokenizer_json",
+    "canonicalized_fields": [
+      "decoder"
+    ],
+    "inputs": [
+      "tiktoken.model",
+      "tokenizer_config.json"
+    ]
+  },
+  "custom_code": [
+    "encoding_k3.py",
+    "tokenization_kimi.py"
+  ],
+  "notes": "Kimi K3 renders chat templates in Python (encoding_k3.py build_chat_segments) instead of a jinja chat_template.jinja; tokenization_kimi.py provides the TikTokenTokenizer class."
+}
