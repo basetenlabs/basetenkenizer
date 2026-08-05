@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main, release/basetenkenizer]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check third-party license inventory
+        run: python3 scripts/generate_cargo_license_inventory.py --check
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Run tests
+        run: cargo test
+
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build and install wheel
+        run: maturin build --release --out dist && pip install dist/*.whl
+
+      - name: Install Python test dependencies
+        run: pip install pytest tiktoken
+
+      - name: Smoke test
+        run: |
+          python - <<'EOF'
+          import basetenkenizer
+          tok = basetenkenizer.Tokenizer.from_model("Qwen/Qwen3-0.6B")
+          ids = tok.encode("hello world", add_special_tokens=False)
+          assert len(ids.ids) > 0, "encode returned empty ids"
+          decoded = tok.decode(list(ids.ids))
+          assert decoded == "hello world", f"unexpected decode: {decoded!r}"
+          print("smoke test passed")
+          EOF
+
+      - name: Run Python tests
+        run: pytest python/tests -v
+
+  patch-transformers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        transformers: ["4.57.1", "5.3.0"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build and install wheel
+        run: maturin build --release --out dist && pip install dist/*.whl
+
+      - name: Install transformers ${{ matrix.transformers }} and pytest
+        run: pip install transformers==${{ matrix.transformers }} pytest jinja2
+
+      - name: Test patch_transformers
+        run: pytest python/tests/test_patch_transformers.py -v

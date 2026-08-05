@@ -1,0 +1,57 @@
+MIT License
+
+Copyright (c) 2026 Baseten
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+------------------------------------------------------------------------
+Additional conditions (attribution and branding)
+------------------------------------------------------------------------
+
+Notwithstanding the permission granted above, the following additional
+conditions apply:
+
+0. Unmodified use is MIT. Use of the Software in unmodified form (for
+   example, depending on the published "basetenkenizer" crate or wheel as
+   distributed, without altering its source) is permitted under the MIT
+   license terms above, with no further obligation beyond the MIT copyright
+   and permission notice. The additional conditions below apply only to
+   modifications, redistributions of modified copies, rebranding, and
+   cherry-picking of the Software.
+
+1. Prominent attribution. Redistributions of the Software, whether in source
+   or binary form, must retain prominent attribution to Baseten as the
+   original author of the Baseten Tokenizer ("basetenkenizer"). This
+   attribution must be displayed prominently in the documentation, user
+   interface, or other materials provided with the redistribution, and must
+   not be removed, obscured, or altered.
+
+2. No rebranding without display of Baseten. Rebranding the Software, or any
+   substantial portion of it, as a product not originating from Baseten is not
+   permitted unless Baseten is prominently displayed as the original source of
+   the implementation, as described in section 1.
+
+3. No cherry-picking without attribution. Extracting, copying, or
+   incorporating any part of the Software into another work ("cherry-picking")
+   is not permitted without retaining the attribution to Baseten required by
+   section 1.
+
+These additional conditions are provided for the protection of Baseten's
+authorship and do not alter the warranty disclaimer or liability exclusion
+above. For questions or alternative licensing terms, contact Baseten.

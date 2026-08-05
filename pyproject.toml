@@ -1,0 +1,29 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "basetenkenizer"
+dynamic = ["version"]
+description = "High-performance tokenization for inference"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Baseten" }]
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23.0"]
+
+[project.urls]
+Homepage = "https://www.baseten.co"
+Repository = "https://github.com/baseten/basetenkenizer"
+
+[project.optional-dependencies]
+tiktoken = ["tiktoken>=0.13.0"]
+
+[tool.maturin]
+manifest-path = "python/Cargo.toml"
+python-source = "python"
+module-name = "basetenkenizer._native"
+include = [
+    { path = "LICENSES/*", format = "wheel" },
+    { path = "THIRD_PARTY_LICENSES.md", format = "wheel" },
+]

@@ -1,0 +1,26 @@
+Vendored tokenizer test assets — separate upstream terms
+=========================================================
+
+The files in this directory are tracked in the Basetenkenizer Git source
+repository solely as reference fixtures for continuous integration,
+compatibility testing, and tokenizer conversion tests. They are not part of
+the Basetenkenizer library implementation.
+
+These files are included when the Git source repository is cloned or
+archived. They are excluded from the published crates.io package by
+`Cargo.toml` and are not installed as data files by the Basetenkenizer Python
+wheel.
+
+Unless a file expressly states otherwise, the upstream-derived tokenizer
+configurations, vocabularies, chat templates, model data, and custom model
+code in this directory are NOT offered under the top-level Basetenkenizer
+license. No additional license to reuse those files is granted by Baseten.
+Each file remains subject to the copyright, license, model terms, acceptable
+use terms, and other restrictions of its respective upstream source.
+
+Possession of a copy through this repository does not establish permission to
+redistribute or reuse it. Before using any file outside Basetenkenizer's tests,
+identify its upstream source and independently confirm that the intended use
+is permitted. `source.json` files, where present, record source repositories
+and revisions for audit purposes; absence of such a file is not a grant of
+rights.

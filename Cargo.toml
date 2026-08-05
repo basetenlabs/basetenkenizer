@@ -1,0 +1,99 @@
+[workspace]
+members = [".", "python"]
+
+[workspace.package]
+version = "0.2.8"
+edition = "2024"
+license-file = "LICENSE"
+repository = "https://github.com/baseten/basetenkenizer"
+homepage = "https://www.baseten.co"
+documentation = "https://www.baseten.co"
+
+[package]
+name = "basetenkenizer"
+version.workspace = true
+edition.workspace = true
+authors = ["Michael Feil noreply@baseten.co"]
+description = "High-performance tokenization for inference"
+license-file.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+exclude = [
+    "vendored_tokenizers/**",
+    "tests/fixtures/corpus_multilingual.txt",
+    "assets/**",
+]
+
+[lib]
+name = "basetenkenizer"
+
+[features]
+default = ["hf-hub"]
+hf-hub = ["dep:hf-hub"]
+
+[dependencies]
+daachorse = "1.0.0"
+fancy-regex = "0.17.0"
+memchr = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+minijinja = { version = "2.22.0", default-features = false, features = [
+    # `loop.previtem` / `loop.nextitem`. Real chat templates use these to group
+    # adjacent messages of the same role (e.g. consecutive tool responses under
+    # one header). Without the feature both attributes are silently undefined,
+    # so a template that reads `loop.nextitem.role` errors with "undefined
+    # value" and one that guards on `loop.previtem` takes the wrong branch.
+    "adjacent_loop_items",
+    "builtins",
+    "deserialization",
+    "loop_controls",
+    "macros",
+    "multi_template",
+    "preserve_order",
+    "serde",
+    "std_collections",
+    # The `urlencode` filter. Jinja2 ships it as a builtin, so a template using
+    # it renders under Transformers but fails here with "unknown filter".
+    "urlencode",
+] }
+minijinja-contrib = { version = "2.22.0", features = ["pycompat"] }
+pcre2 = "0.2"
+hf-hub = { version = "0.4.3", optional = true, default-features = false, features = ["rustls-tls", "ureq"] }
+rayon = "1.11.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149", features = ["preserve_order"] }
+strum = { version = "0.27.2", features = ["derive"] }
+thiserror = "2.0.18"
+icu_normalizer = "2"
+icu_properties = "2"
+
+[dev-dependencies]
+anyhow = "1"
+clap = { version = "4.5.58", features = ["derive"] }
+csv = "1.4.0"
+indicatif = "0.18.4"
+tokenizers = { version = "0.22.2", features = ["http"] }
+
+[[example]]
+name = "get_step_kinds"
+required-features = ["hf-hub"]
+
+[[example]]
+name = "print_pipeline"
+required-features = ["hf-hub"]
+
+[[example]]
+name = "profile_sample"
+required-features = ["hf-hub"]
+
+[[example]]
+name = "profile_stages"
+required-features = ["hf-hub"]
+
+[[example]]
+name = "simple_bench"
+required-features = ["hf-hub"]
+
+[[example]]
+name = "long_context_bench"
+required-features = ["hf-hub"]
