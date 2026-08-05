@@ -1,0 +1,62 @@
+name: Python CI
+
+on:
+  push:
+    branches: [main, release/basetenkenizer]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Cache Hugging Face tokenizers
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/huggingface/hub
+            ~/.cache/huggingface/xet
+            ~/.cache/tokenizers
+          key: ${{ runner.os }}-py3.12-hf-tokenizers-${{ hashFiles('pyproject.toml', 'python/Cargo.toml', 'Cargo.lock', '.github/workflows/python-ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-py3.12-hf-tokenizers-
+            ${{ runner.os }}-hf-tokenizers-
+
+      - name: Configure Hugging Face token
+        run: |
+          if [ -n "${HF_TOKEN:-}" ]; then
+            mkdir -p ~/.cache/huggingface
+            printf '%s' "$HF_TOKEN" > ~/.cache/huggingface/token
+          fi
+
+      - name: Install Python test dependencies
+        run: python -m pip install --upgrade pip maturin pytest transformers==4.57.1 jinja2
+
+      - name: Build and install basetenkenizer
+        run: maturin build --release --out dist && pip install dist/*.whl
+
+      - name: Run Python tests
+        run: pytest python/tests -v
+
+      - name: Remove Hugging Face token before cache save
+        if: always()
+        run: rm -f ~/.cache/huggingface/token
