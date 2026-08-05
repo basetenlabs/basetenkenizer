@@ -13,6 +13,7 @@ documentation = "https://www.baseten.co"
 name = "basetenkenizer"
 version.workspace = true
 edition.workspace = true
+authors = ["Michael Feil <noreply@baseten.co>"]
 description = "High-performance tokenization for inference"
 license.workspace = true
 repository.workspace = true
