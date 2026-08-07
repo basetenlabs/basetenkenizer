@@ -4,7 +4,7 @@ members = [".", "python"]
 [workspace.package]
 version = "0.2.8"
 edition = "2024"
-license-file = "LICENSE"
+license = "Apache-2.0"
 repository = "https://github.com/baseten/basetenkenizer"
 homepage = "https://www.baseten.co"
 documentation = "https://www.baseten.co"
@@ -15,14 +15,13 @@ version.workspace = true
 edition.workspace = true
 authors = ["Michael Feil noreply@baseten.co"]
 description = "High-performance tokenization for inference"
-license-file.workspace = true
+license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
 exclude = [
     "vendored_tokenizers/**",
     "tests/fixtures/corpus_multilingual.txt",
-    "assets/**",
 ]
 
 [lib]

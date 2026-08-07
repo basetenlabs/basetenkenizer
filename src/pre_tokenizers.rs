@@ -1,3 +1,9 @@
+// Copyright 2026 fastokens contributors
+// Copyright 2026 Baseten
+// SPDX-License-Identifier: Apache-2.0
+//
+// Derived from Crusoe fastokens and modified by Baseten.
+
 pub(crate) mod byte_level;
 pub(crate) mod fast_split;
 pub(crate) mod fast_split_o200k;

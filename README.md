@@ -3,10 +3,6 @@
 High-performance, Rust-backed BPE tokenization for inference. The Python
 package is named `basetenkenizer`.
 
-## Performance
-
-![Kimi K3 tokenization latency comparison](assets/basetenkenizer_vs_gigatokenfastokenstiktoken.png)
-
 ## Install
 
 ```bash
@@ -166,7 +162,8 @@ Face Tokenizers training or alignment feature.
 
 ## License
 
-The `basetenkenizer` package is licensed under the terms in [LICENSE](LICENSE).
+The `basetenkenizer` package is licensed under the
+[Apache License 2.0](LICENSE).
 Third-party and derived components remain subject to their respective terms;
 see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the release audit.
 

@@ -1,3 +1,9 @@
+// Copyright 2026 fastokens contributors
+// Copyright 2026 Baseten
+// SPDX-License-Identifier: Apache-2.0
+//
+// Derived from Crusoe fastokens and modified by Baseten.
+
 use std::sync::{Arc, RwLock};
 
 use basetenkenizer::chat_template::minijinja::{Value as TemplateValue, value::ValueKind};
