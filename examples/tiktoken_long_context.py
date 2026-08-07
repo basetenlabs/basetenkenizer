@@ -1,3 +1,9 @@
+# Copyright 2026 Baseten
+# All rights reserved.
+#
+# This file is proprietary to Baseten and is not licensed under the
+# Apache License, Version 2.0.
+
 """Compare cold-cache basetenkenizer and tiktoken on long o200k contexts.
 
 The benchmark asserts identical token IDs before timing. Tokenizer construction

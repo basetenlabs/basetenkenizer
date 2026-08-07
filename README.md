@@ -166,6 +166,12 @@ The `basetenkenizer` package is licensed under the
 [Apache License 2.0](LICENSE).
 Third-party and derived components remain subject to their respective terms;
 see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the release audit.
+Some files are vendored from other projects for testing, including files under
+`vendored_tokenizers/`, and remain subject to their respective terms rather
+than Apache-2.0. Some test and benchmark files contain or were bundled from
+internal implementations; they carry separate terms in their file headers and
+are not available under Apache-2.0. Non-Apache materials are excluded from
+published source and binary packages.
 
 [View `basetenkenizer` on PyPI](https://pypi.org/project/basetenkenizer/)
 

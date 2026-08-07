@@ -1,3 +1,6 @@
+// Copyright 2026 Baseten
+// SPDX-License-Identifier: Apache-2.0
+
 use serde_json::{Map, Value};
 
 /// Return baseline special-token variables for standalone template rendering.

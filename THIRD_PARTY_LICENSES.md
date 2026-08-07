@@ -5,12 +5,15 @@
 
 ## Artifact scope
 
-- **Git source:** contains all tracked files, including the test-only
-  `vendored_tokenizers/` fixtures governed by their own upstream terms.
+- **Git source:** contains test-only and benchmarking materials governed by
+  separate upstream or file-level terms, including fixtures under
+  `vendored_tokenizers/` and files bundled from internal implementations.
 - **crates.io source package:** contains the Rust library source, this audit,
   `LICENSE`, and `LICENSES/`; it excludes
-  `vendored_tokenizers/` and `tests/fixtures/corpus_multilingual.txt`
-  as configured in `Cargo.toml`.
+  `vendored_tokenizers/` and standalone files under `tests/`
+  as configured in `Cargo.toml`. Non-Apache test and benchmark materials are
+  also excluded from published crates.io and Python artifacts, including
+  files under `python/tests/`.
 - **Python wheels:** contain the Python package and a native extension built
   from the normal/build Cargo dependency closure below. Vendored tokenizer
   fixtures are not installed as wheel data.

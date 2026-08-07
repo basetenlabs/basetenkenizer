@@ -1,3 +1,6 @@
+// Copyright 2026 Baseten
+// SPDX-License-Identifier: Apache-2.0
+
 use chrono::{DateTime, Local};
 use minijinja::{Environment, Error, ErrorKind, Value as MiniJinjaValue, value::Kwargs};
 use serde::Serialize;

@@ -1,3 +1,6 @@
+// Copyright 2026 Baseten
+// SPDX-License-Identifier: Apache-2.0
+
 mod runtime;
 mod special_tokens;
 

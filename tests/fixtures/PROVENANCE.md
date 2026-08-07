@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Baseten -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # corpus_multilingual.txt — provenance & license
 
 A ~2 MB differential-test corpus: real prose mixing English with eight

@@ -1,3 +1,9 @@
+# Copyright 2026 Baseten
+# All rights reserved.
+#
+# This file is proprietary to Baseten and is not licensed under the
+# Apache License, Version 2.0.
+
 import json
 import unittest
 from copy import deepcopy

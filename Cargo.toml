@@ -21,7 +21,10 @@ homepage.workspace = true
 documentation.workspace = true
 exclude = [
     "vendored_tokenizers/**",
-    "tests/fixtures/corpus_multilingual.txt",
+    "tests/**",
+    "examples/long_context_bench.rs",
+    "examples/serving_split_bench.rs",
+    "examples/tiktoken_long_context.py",
 ]
 
 [lib]

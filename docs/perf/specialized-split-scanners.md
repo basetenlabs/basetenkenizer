@@ -1,3 +1,6 @@
+<!-- Copyright 2026 Baseten -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Specialized split scanners
 
 Hand-written pre-tokenization scanners for split regexes known ahead of time,

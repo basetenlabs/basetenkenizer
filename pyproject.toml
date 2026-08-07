@@ -27,3 +27,9 @@ include = [
     { path = "LICENSES/*", format = "wheel" },
     { path = "THIRD_PARTY_LICENSES.md", format = "wheel" },
 ]
+exclude = [
+    { path = "examples/long_context_bench.rs", format = "sdist" },
+    { path = "examples/serving_split_bench.rs", format = "sdist" },
+    { path = "examples/tiktoken_long_context.py", format = "sdist" },
+    { path = "python/tests/**", format = "sdist" },
+]

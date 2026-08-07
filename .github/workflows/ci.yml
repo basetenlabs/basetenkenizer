@@ -26,6 +26,9 @@ jobs:
       - name: Check third-party license inventory
         run: python3 scripts/generate_cargo_license_inventory.py --check
 
+      - name: Check copyright boundaries
+        run: python3 scripts/check_copyright_headers.py
+
       - name: Check formatting
         run: cargo fmt --check
 
