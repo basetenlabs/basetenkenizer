@@ -33,6 +33,22 @@ objects expose `ids`, `attention_mask`, `type_ids`, and
 `special_tokens_mask`; selected fields can be moved into NumPy arrays with
 `encoding.into_numpy(...)`.
 
+## RoBERTa
+
+Single-text RoBERTa tokenization supports `<s>` / `</s>` insertion, `<mask>`
+whitespace handling, and older JSON files without an explicit BPE model type.
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("FacebookAI/roberta-base")
+ids = tokenizer.encode("Hello <mask>!", add_special_tokens=True).ids
+```
+
+Sentence pairs and character/word alignment are unsupported. The existing
+`special_tokens_mask` output does not identify post-processor inserted tokens.
+Run offline Hugging Face parity with `cargo test --test roberta`.
+
 ## Kimi K2.7 Code
 
 Load the published tokenizer directly from its model repository:
