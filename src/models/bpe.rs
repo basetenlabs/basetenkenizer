@@ -388,7 +388,6 @@ struct RawBpe {
     #[allow(dead_code)]
     fuse_unk: bool,
     #[serde(default)]
-    #[allow(dead_code)]
     byte_fallback: bool,
     #[serde(default)]
     ignore_merges: bool,
@@ -628,6 +627,7 @@ pub struct Bpe {
     byte_pair_initial: Vec<(u32, u32)>,
     merge_adj: MergeAdjacency,
     ignore_merges: bool,
+    byte_fallback_ids: Option<Arc<[Option<u32>; 256]>>,
 }
 
 impl TryFrom<RawBpe> for Bpe {
@@ -637,6 +637,11 @@ impl TryFrom<RawBpe> for Bpe {
         let merge_map = parse_merges(&raw.vocab, &raw.merges)?;
         let mut bpe = Self::new(&raw.vocab, merge_map)?;
         bpe.ignore_merges = raw.ignore_merges;
+        if raw.byte_fallback {
+            bpe.byte_fallback_ids = Some(Arc::new(std::array::from_fn(|byte| {
+                raw.vocab.get(&format!("<0x{byte:02X}>")).copied()
+            })));
+        }
         if bpe.ignore_merges {
             bpe.raw_token_to_id = Some(Arc::new(raw_bytelevel_vocab(&raw.vocab)));
         }
@@ -877,6 +882,7 @@ impl Bpe {
             byte_pair_initial,
             merge_adj,
             ignore_merges: false,
+            byte_fallback_ids: None,
         })
     }
 
@@ -998,20 +1004,29 @@ impl Bpe {
             for ch in input.chars() {
                 let mut buf = [0u8; 4];
                 let s = ch.encode_utf8(&mut buf);
-                let id = self
-                    .token_to_id
-                    .get(s)
-                    .copied()
-                    .ok_or_else(|| format!("character {ch:?} not in vocabulary"))?;
-                scratch.symbols.push(MergeSymbol {
-                    c: id,
-                    prev: if n == 0 { -1 } else { (n - 1) as i32 },
-                    next: -1,
-                });
-                if n > 0 {
-                    scratch.symbols[n - 1].next = n as i32;
+                let mut fallback = [0; 4];
+                let ids = if let Some(id) = self.token_to_id.get(s) {
+                    std::slice::from_ref(id)
+                } else if let Some(byte_ids) = &self.byte_fallback_ids {
+                    for (index, byte) in s.bytes().enumerate() {
+                        fallback[index] = byte_ids[byte as usize]
+                            .ok_or_else(|| format!("fallback byte {byte:02X} not in vocabulary"))?;
+                    }
+                    &fallback[..s.len()]
+                } else {
+                    return Err(format!("character {ch:?} not in vocabulary"));
+                };
+                for &id in ids {
+                    scratch.symbols.push(MergeSymbol {
+                        c: id,
+                        prev: if n == 0 { -1 } else { (n - 1) as i32 },
+                        next: -1,
+                    });
+                    if n > 0 {
+                        scratch.symbols[n - 1].next = n as i32;
+                    }
+                    n += 1;
                 }
-                n += 1;
             }
 
             if n == 1 {
@@ -1480,6 +1495,7 @@ impl Clone for Bpe {
             byte_pair_initial: self.byte_pair_initial.clone(),
             merge_adj: self.merge_adj.clone(),
             ignore_merges: self.ignore_merges,
+            byte_fallback_ids: self.byte_fallback_ids.clone(),
         }
     }
 }
@@ -1501,6 +1517,7 @@ impl PartialEq for Bpe {
             && self.next_prefix_map == other.next_prefix_map
             && self.token_lens == other.token_lens
             && self.ignore_merges == other.ignore_merges
+            && self.byte_fallback_ids == other.byte_fallback_ids
     }
 }
 

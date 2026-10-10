@@ -22,7 +22,39 @@ pub enum Error {
 #[derive(Debug)]
 pub enum Normalizer {
     Nfc(Nfc),
+    Replace(Replace),
     Sequence(Vec<Normalizer>),
+}
+
+#[derive(Debug)]
+pub struct Replace {
+    pattern: String,
+    content: String,
+}
+
+impl Replace {
+    fn from_config(pattern: serde_json::Value, content: String) -> Result<Self, Error> {
+        let Some(pattern) = pattern.get("String").and_then(|v| v.as_str()) else {
+            let kind = pattern
+                .as_object()
+                .and_then(|object| object.keys().next())
+                .map(String::as_str)
+                .unwrap_or("unknown");
+            return Err(Error::Unsupported(format!("Replace pattern type {kind}")));
+        };
+        Ok(Self {
+            pattern: pattern.to_owned(),
+            content,
+        })
+    }
+
+    fn normalize<'a>(&self, input: &'a str) -> Cow<'a, str> {
+        if input.contains(&self.pattern) {
+            Cow::Owned(input.replace(&self.pattern, &self.content))
+        } else {
+            Cow::Borrowed(input)
+        }
+    }
 }
 
 impl Normalizer {
@@ -30,6 +62,9 @@ impl Normalizer {
     pub fn from_config(config: NormalizerConfig) -> Result<Self, Error> {
         match config {
             NormalizerConfig::Nfc => Ok(Self::Nfc(Nfc)),
+            NormalizerConfig::Replace { pattern, content } => {
+                Ok(Self::Replace(Replace::from_config(pattern, content)?))
+            }
             NormalizerConfig::Sequence { normalizers } => {
                 let steps = normalizers
                     .into_iter()
@@ -52,6 +87,7 @@ impl Normalizer {
     pub fn normalize<'a>(&self, input: &'a str) -> Cow<'a, str> {
         match self {
             Self::Nfc(nfc) => nfc.normalize(input),
+            Self::Replace(replace) => replace.normalize(input),
             Self::Sequence(steps) => {
                 let mut current = Cow::Borrowed(input);
                 for step in steps {
