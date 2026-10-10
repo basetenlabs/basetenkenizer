@@ -1,0 +1,22 @@
+name: Publish basetenkenizer to crates.io
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify package
+        run: cargo publish -p basetenkenizer --dry-run --locked
+      - name: Publish crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_PUBLISH_BASETENKENIZER }}
+        run: cargo publish -p basetenkenizer --locked
