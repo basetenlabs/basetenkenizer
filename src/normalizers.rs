@@ -22,6 +22,7 @@ pub enum Error {
 #[derive(Debug)]
 pub enum Normalizer {
     Nfc(Nfc),
+    Prepend(String),
     Replace(Replace),
     Sequence(Vec<Normalizer>),
 }
@@ -62,6 +63,7 @@ impl Normalizer {
     pub fn from_config(config: NormalizerConfig) -> Result<Self, Error> {
         match config {
             NormalizerConfig::Nfc => Ok(Self::Nfc(Nfc)),
+            NormalizerConfig::Prepend { prepend } => Ok(Self::Prepend(prepend)),
             NormalizerConfig::Replace { pattern, content } => {
                 Ok(Self::Replace(Replace::from_config(pattern, content)?))
             }
@@ -87,6 +89,13 @@ impl Normalizer {
     pub fn normalize<'a>(&self, input: &'a str) -> Cow<'a, str> {
         match self {
             Self::Nfc(nfc) => nfc.normalize(input),
+            Self::Prepend(prefix) => {
+                if input.is_empty() || prefix.is_empty() {
+                    Cow::Borrowed(input)
+                } else {
+                    Cow::Owned(format!("{prefix}{input}"))
+                }
+            }
             Self::Replace(replace) => replace.normalize(input),
             Self::Sequence(steps) => {
                 let mut current = Cow::Borrowed(input);

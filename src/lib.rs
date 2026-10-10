@@ -14,7 +14,7 @@ pub mod post_processors;
 pub mod pre_tokenized;
 pub mod pre_tokenizers;
 
-use std::{fs, path::Path};
+use std::{collections::HashSet, fs, path::Path};
 
 use rayon::prelude::*;
 use serde_json::Value;
@@ -137,6 +137,8 @@ pub enum Error {
 /// An LLM tokenizer backed by `tokenizer.json`.
 pub struct Tokenizer {
     added_tokens: Option<AddedTokens>,
+    // Match raw tokens before normalization, then normalized tokens within remaining spans.
+    normalized_matchers: Option<(Option<AddedTokens>, Option<AddedTokens>)>,
     normalizer: Option<Normalizer>,
     pre_tokenizer: Option<PreTokenizer>,
     model: Model,
@@ -152,6 +154,33 @@ impl Tokenizer {
     fn build(json: TokenizerJson) -> Result<Self, Error> {
         let added_tokens = AddedTokens::from_configs(&json.added_tokens).map_err(Error::Model)?;
         let normalizer = json.normalizer.map(Normalizer::from_config).transpose()?;
+        let normalized_matchers = if let Some(normalizer) = &normalizer
+            && json.added_tokens.iter().any(|token| token.normalized)
+        {
+            let (normalized, raw): (Vec<_>, Vec<_>) = json
+                .added_tokens
+                .iter()
+                .cloned()
+                .partition(|token| token.normalized);
+            let mut normalized = normalized
+                .into_iter()
+                .map(|mut token| {
+                    token.content = normalizer.normalize(&token.content).into_owned();
+                    token
+                })
+                .collect::<Vec<_>>();
+            // HF matches special tokens first, then ordinary tokens, preserving
+            // insertion order within each group. Equal patterns use the first.
+            normalized.sort_by_key(|token| !token.special);
+            let mut seen = HashSet::new();
+            normalized.retain(|token| seen.insert(token.content.clone()));
+            Some((
+                AddedTokens::from_configs(&raw).map_err(Error::Model)?,
+                AddedTokens::from_configs(&normalized).map_err(Error::Model)?,
+            ))
+        } else {
+            None
+        };
         let pre_tokenizer = json
             .pre_tokenizer
             .map(PreTokenizer::from_config)
@@ -168,6 +197,7 @@ impl Tokenizer {
 
         Ok(Self {
             added_tokens,
+            normalized_matchers,
             normalizer,
             pre_tokenizer,
             model,
@@ -588,6 +618,41 @@ impl Tokenizer {
         split_special_tokens: bool,
         bypass_added_tokens: bool,
     ) -> PreTokenizedString {
+        if let Some((raw, normalized)) = &self.normalized_matchers {
+            let mut buffer = String::with_capacity(input.len());
+            let mut splits = Vec::new();
+            for segment in split_added(raw, input, split_special_tokens, bypass_added_tokens) {
+                match segment {
+                    Segment::Token(id) => splits.push(PtSplit {
+                        range: buffer.len()..buffer.len(),
+                        token_id: Some(id),
+                    }),
+                    Segment::Text(text) => {
+                        let text = self.normalizer.as_ref().unwrap().normalize(text);
+                        for segment in split_added(
+                            normalized,
+                            &text,
+                            split_special_tokens,
+                            bypass_added_tokens,
+                        ) {
+                            let start = buffer.len();
+                            let token_id = match segment {
+                                Segment::Token(id) => Some(id),
+                                Segment::Text(text) => {
+                                    buffer.push_str(text);
+                                    None
+                                }
+                            };
+                            splits.push(PtSplit {
+                                range: start..buffer.len(),
+                                token_id,
+                            });
+                        }
+                    }
+                }
+            }
+            return PreTokenizedString::new(buffer, splits);
+        }
         let segments = match &self.added_tokens {
             Some(_) if bypass_added_tokens => vec![Segment::Text(input)],
             Some(at) if split_special_tokens => at.split_special_as_text(input),
@@ -659,6 +724,20 @@ impl Tokenizer {
         }
 
         PreTokenizedString::new(buffer, splits)
+    }
+}
+
+fn split_added<'a>(
+    matcher: &Option<AddedTokens>,
+    text: &'a str,
+    special: bool,
+    bypass: bool,
+) -> Vec<Segment<'a>> {
+    match matcher {
+        Some(_) if bypass => vec![Segment::Text(text)],
+        Some(matcher) if special => matcher.split_special_as_text(text),
+        Some(matcher) => matcher.split(text),
+        None => vec![Segment::Text(text)],
     }
 }
 

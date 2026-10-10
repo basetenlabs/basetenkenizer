@@ -48,6 +48,24 @@ ids = tokenizer.encode("Hello, world!", add_special_tokens=False).ids
 Run offline Hugging Face parity with `cargo test --test gemma`. An optional
 full-vocabulary test uses `GEMMA4_TOKENIZER_JSON` and `-- --ignored`.
 
+## Llama 2 and Llama 3
+
+Llama 2's SentencePiece-style BPE pipeline is supported through Hugging Face
+`tokenizer.json`, including byte fallback, normalization-aware added tokens,
+and decoder stripping. Llama 3's ByteLevel pipeline has offline parity coverage.
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("NousResearch/Llama-2-7b-chat-hf")
+ids = tokenizer.encode("Hello!", add_special_tokens=True).ids
+```
+
+Run offline parity with `cargo test --test llama --test normalized_added_tokens`.
+The Llama 2 fixture includes its upstream license and use policy and is excluded
+from published packages. Python parity uses Tokenizers 0.22.2, matching Rust's
+reference dependency; 0.23.2 differs in normalized special-token skipping.
+
 ## Kimi K2.7 Code
 
 Load the published tokenizer directly from its model repository:
