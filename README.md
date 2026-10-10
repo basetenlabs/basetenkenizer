@@ -87,6 +87,27 @@ without configuration uses the converter's existing default regex; specify
 families without a declared regex are rejected. `from_model` continues to load
 Hugging Face `tokenizer.json`; native ranks loading uses local paths.
 
+## Llama 2 and Llama 3
+
+Llama 2's SentencePiece-style BPE pipeline is supported through Hugging Face
+`tokenizer.json`, including byte fallback, normalization-aware added tokens,
+and decoder stripping. Llama 3's ByteLevel pipeline has offline parity coverage.
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("NousResearch/Llama-2-7b-chat-hf")
+ids = tokenizer.encode("Hello!", add_special_tokens=True).ids
+```
+
+Use ordinary `encode` for Llama prompts. `encode_segments` is specialized for
+Kimi K3 and does not guarantee Llama tokenization parity across segment boundaries.
+
+Run offline parity with `cargo test --test llama --test normalized_added_tokens`.
+The Llama 2 fixture includes its upstream license and use policy and is excluded
+from published packages. Python parity uses Tokenizers 0.22.2, matching Rust's
+reference dependency; 0.23.2 differs in normalized special-token skipping.
+
 ## Kimi K2.7 Code
 
 Load the published tokenizer directly from its model repository:

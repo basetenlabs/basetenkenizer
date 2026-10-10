@@ -29,3 +29,10 @@ English cannot reach (notably the Kimi `[\p{Han}]+` and `&&[^\p{Han}]` rules).
 Documents are separated by the `<|endoftext|>` marker (the common training
 separator) and truncated per document. This file is a test fixture only; it is
 not part of the shipped library.
+
+## Llama 2 chat tokenizer
+
+`llama-2-7b-chat/` contains an unmodified tokenizer from
+`NousResearch/Llama-2-7b-chat-hf`, copied from the fastokens regression fixtures.
+Its source revision, checksum, Llama 2 Community License, and use policy are
+preserved in that directory. These test-only files are excluded from packages.

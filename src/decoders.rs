@@ -23,7 +23,15 @@ pub enum Decoder {
     ByteLevel(ByteLevelDecoder),
     ByteFallback,
     Fuse,
-    Replace { pattern: String, content: String },
+    Strip {
+        content: char,
+        start: usize,
+        stop: usize,
+    },
+    Replace {
+        pattern: String,
+        content: String,
+    },
     Sequence(Vec<Decoder>),
 }
 
@@ -48,6 +56,15 @@ impl Decoder {
                 })
             }
             DecoderConfig::Fuse => Ok(Self::Fuse),
+            DecoderConfig::Strip {
+                content,
+                start,
+                stop,
+            } => Ok(Self::Strip {
+                content,
+                start,
+                stop,
+            }),
             DecoderConfig::Sequence { decoders } => {
                 let steps = decoders
                     .into_iter()
@@ -75,6 +92,29 @@ impl Decoder {
         match self {
             Self::ByteLevel(bl) => Ok(bl.decode_chain(tokens)),
             Self::Fuse => Ok(vec![tokens.concat()]),
+            Self::Strip {
+                content,
+                start,
+                stop,
+            } => Ok(tokens
+                .into_iter()
+                .map(|token| {
+                    let mut text = token.as_str();
+                    for _ in 0..*start {
+                        match text.strip_prefix(*content) {
+                            Some(rest) => text = rest,
+                            None => break,
+                        }
+                    }
+                    for _ in 0..*stop {
+                        match text.strip_suffix(*content) {
+                            Some(rest) => text = rest,
+                            None => break,
+                        }
+                    }
+                    text.to_owned()
+                })
+                .collect()),
             Self::Replace { pattern, content } => Ok(tokens
                 .into_iter()
                 .map(|token| {
