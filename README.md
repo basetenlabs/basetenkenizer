@@ -48,6 +48,45 @@ ids = tokenizer.encode("Hello, world!", add_special_tokens=False).ids
 Run offline Hugging Face parity with `cargo test --test gemma`. An optional
 full-vocabulary test uses `GEMMA4_TOKENIZER_JSON` and `-- --ignored`.
 
+## RoBERTa
+
+Single-text RoBERTa tokenization supports `<s>` / `</s>` insertion, `<mask>`
+whitespace handling, and older JSON files without an explicit BPE model type.
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("FacebookAI/roberta-base")
+ids = tokenizer.encode("Hello <mask>!", add_special_tokens=True).ids
+```
+
+Sentence pairs and character/word alignment are unsupported. The existing
+`special_tokens_mask` output does not identify post-processor inserted tokens.
+Run offline Hugging Face parity with `cargo test --test roberta`.
+
+## Native tiktoken.model files
+
+Load a local ranks file or a directory containing `tiktoken.model` and optional
+`tokenizer_config.json` without installing the Python `tiktoken` package:
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_file("/models/Kimi-K3")
+# For a custom ranks file, specify its exact pre-tokenization regex:
+tokenizer = Tokenizer.from_tiktoken_model(
+    "/models/custom.model", pattern=r"\S+|\s+",
+    special_tokens={"<|end|>": 1000},
+)
+```
+
+Kimi configurations automatically select the Kimi regex and reserved-token
+window. Other configurations can declare `pat_str` or `pattern`. A raw file
+without configuration uses the converter's existing default regex; specify
+`pattern` when another tokenization scheme is intended. Identified unknown
+families without a declared regex are rejected. `from_model` continues to load
+Hugging Face `tokenizer.json`; native ranks loading uses local paths.
+
 ## Llama 2 and Llama 3
 
 Llama 2's SentencePiece-style BPE pipeline is supported through Hugging Face
@@ -60,6 +99,9 @@ from basetenkenizer import Tokenizer
 tokenizer = Tokenizer.from_model("NousResearch/Llama-2-7b-chat-hf")
 ids = tokenizer.encode("Hello!", add_special_tokens=True).ids
 ```
+
+Use ordinary `encode` for Llama prompts. `encode_segments` is specialized for
+Kimi K3 and does not guarantee Llama tokenization parity across segment boundaries.
 
 Run offline parity with `cargo test --test llama --test normalized_added_tokens`.
 The Llama 2 fixture includes its upstream license and use policy and is excluded
@@ -77,27 +119,8 @@ tokenizer = Tokenizer.from_model("moonshotai/Kimi-K2.7-Code")
 ids = tokenizer.encode("def hello():\n    return 'world'").ids
 ```
 
-For a chat prompt, preserve the boundary between template control tokens and
-untrusted message content with `encode_segments`:
-
-```python
-user_message = "Write a Python HTTP server."
-
-segments = [
-    ("<|im_user|>user<|im_middle|>", True),
-    (user_message, False),
-    ("<|im_end|>", True),
-    ("<|im_assistant|>assistant<|im_middle|><think>", True),
-]
-
-encoding = tokenizer.encode_segments(segments)
-input_ids = encoding.ids
-```
-
-This is the minimal Kimi K2.7 Code user/assistant shape. Applications using
-system messages, tools, images, or existing assistant messages should render
-the complete official model template and retain the same control-text versus
-message-text boundaries.
+For chat prompts, use the complete official model renderer. The
+`encode_segments` contract documented below is specialized for Kimi K3.
 
 ## Kimi K3
 
@@ -153,7 +176,19 @@ conversations involving tools, images, reasoning content, response schemas,
 or multiple message types. Do not concatenate its segments before encoding:
 doing so loses the special-token safety boundary.
 
-## Why `encode_segments`?
+## Kimi K3 segment encoding contract
+
+`encode_segments` is specialized for Kimi K3's segment-based renderer.
+Pass the official renderer's segments in order, preserving their text and
+`allow_special` flags. Each segment is normalized, pre-tokenized, and BPE-encoded
+independently before token IDs are joined. Segment boundaries are part of this
+contract: the result need not equal encoding the concatenated text.
+
+This is not a general-purpose chat encoding API for other models. For example,
+Llama 2's `Prepend` normalizer runs independently on each nonempty text span,
+so segmenting a prompt can introduce extra prefix markers. Use ordinary
+`encode` for other model pipelines unless their renderer explicitly requires
+and validates these segment semantics.
 
 Each segment is a `(text, allow_special)` pair:
 

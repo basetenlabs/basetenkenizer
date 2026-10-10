@@ -90,6 +90,13 @@ class Tokenizer:
     @staticmethod
     def from_file(path: str) -> "Tokenizer": ...
     @staticmethod
+    def from_tiktoken_model(
+        path: str,
+        *,
+        pattern: Optional[str] = None,
+        special_tokens: Optional[dict[str, int]] = None,
+    ) -> "Tokenizer": ...
+    @staticmethod
     def from_json_str(json: str) -> "Tokenizer": ...
     @staticmethod
     def from_model(model: str) -> "Tokenizer": ...
@@ -136,7 +143,13 @@ class Tokenizer:
         add_special_tokens: bool = False,
         tiktoken_safe: bool = True,
     ) -> Encoding:
-        """Encode ``(text, allow_special)`` segments in one backend call.
+        """Encode Kimi K3 renderer ``(text, allow_special)`` segments.
+
+        Specialized for Kimi K3: each segment is normalized, pre-tokenized,
+        and BPE-encoded independently. Boundaries can change token IDs; this
+        does not guarantee parity with encoding concatenated text. Use ordinary
+        encoding for other models unless their renderer explicitly requires
+        and validates these segment semantics.
 
         ``tiktoken_safe=True`` is the default and reproduces legacy tiktoken
         tokenizer chunking for token-ID parity. Pass ``False`` only when you

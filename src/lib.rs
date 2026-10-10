@@ -13,6 +13,9 @@ pub mod normalizers;
 pub mod post_processors;
 pub mod pre_tokenized;
 pub mod pre_tokenizers;
+pub mod tiktoken;
+
+pub use tiktoken::{TiktokenConfig, TiktokenFamily};
 
 use std::{collections::HashSet, fs, path::Path};
 
@@ -233,6 +236,20 @@ impl Tokenizer {
 
     /// Create a tokenizer from a `tokenizer.json` file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
+        if path.is_dir() {
+            let json_path = path.join("tokenizer.json");
+            return if json_path.is_file() {
+                Self::from_file(&json_path)
+            } else {
+                Self::from_tiktoken_dir(path)
+            };
+        }
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "model")
+        {
+            return Self::from_tiktoken_model(path);
+        }
         let json: TokenizerJson = serde_json::from_str(&fs::read_to_string(path)?)?;
         Self::build(json)
     }
@@ -389,8 +406,15 @@ impl Tokenizer {
         Ok(ids)
     }
 
-    /// Encode already-rendered text segments with per-segment control over
-    /// added-token matching.
+    /// Encode Kimi K3 renderer segments with per-segment added-token matching.
+    ///
+    /// This API is specialized for Kimi K3's segment-based rendering contract.
+    /// Each segment is normalized, pre-tokenized, and BPE-encoded independently;
+    /// boundaries are intentional and can change token IDs. It does not promise
+    /// equivalence to encoding concatenated text. In particular, a normalizer
+    /// such as Llama 2's Prepend runs separately on each nonempty text span.
+    /// Use the ordinary encode APIs for other model pipelines unless their
+    /// renderer explicitly requires and validates these segment semantics.
     ///
     /// When `allow_special` is true, the segment uses normal added-token
     /// matching. When false, all added-token matching is bypassed, so strings
@@ -413,7 +437,11 @@ impl Tokenizer {
         Ok(self.post_process(ids, add_special_tokens))
     }
 
-    /// Encode segments while preserving custom tiktoken tokenizer chunking.
+    /// Encode Kimi K3 renderer segments with legacy tiktoken chunk boundaries.
+    ///
+    /// Shares the specialized segment contract of [`Self::encode_segments`]:
+    /// segments and their additional chunks are encoded independently. This is
+    /// not a general-purpose replacement for encoding concatenated prompts.
     ///
     /// This splits every segment into at most 400k-character chunks and further
     /// splits very long whitespace/non-whitespace runs at 25k characters before
