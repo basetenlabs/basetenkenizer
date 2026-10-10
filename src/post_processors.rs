@@ -174,8 +174,25 @@ impl PostProcessor {
             PostProcessorConfig::BertProcessing { .. } => {
                 Err(Error::Unsupported("BertProcessing".to_string()))
             }
-            PostProcessorConfig::RobertaProcessing { .. } => {
-                Err(Error::Unsupported("RobertaProcessing".to_string()))
+            PostProcessorConfig::RobertaProcessing { sep, cls, .. } => {
+                Ok(Self::TemplateProcessing(TemplateProcessing {
+                    single: vec![
+                        TemplatePiece::SpecialToken {
+                            id: cls.0.clone(),
+                            type_id: 0,
+                        },
+                        TemplatePiece::Sequence {
+                            id: SequenceId::A,
+                            type_id: 0,
+                        },
+                        TemplatePiece::SpecialToken {
+                            id: sep.0.clone(),
+                            type_id: 0,
+                        },
+                    ],
+                    pair: vec![], // Pair encoding is not exposed by basetenkenizer.
+                    special_tokens: HashMap::from([(cls.0, vec![cls.1]), (sep.0, vec![sep.1])]),
+                }))
             }
             PostProcessorConfig::Other(v) => {
                 let typ = v.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
@@ -384,16 +401,20 @@ mod tests {
     }
 
     #[test]
-    fn roberta_processing_returns_unsupported() {
-        assert!(
-            PostProcessor::from_config(PostProcessorConfig::RobertaProcessing {
-                sep: ("</s>".to_string(), 2),
-                cls: ("<s>".to_string(), 0),
-                trim_offsets: true,
-                add_prefix_space: true,
-            })
-            .is_err()
+    fn roberta_processing_adds_bos_eos() {
+        let processor = PostProcessor::from_config(PostProcessorConfig::RobertaProcessing {
+            sep: ("</s>".to_string(), 2),
+            cls: ("<s>".to_string(), 0),
+            trim_offsets: true,
+            add_prefix_space: true,
+        })
+        .unwrap();
+        assert_eq!(
+            processor.post_process_single(vec![42], true),
+            vec![0, 42, 2]
         );
+        assert_eq!(processor.post_process_single(vec![], true), vec![0, 2]);
+        assert_eq!(processor.post_process_single(vec![42], false), vec![42]);
     }
 
     #[test]

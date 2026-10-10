@@ -10,14 +10,14 @@ use crate::pre_tokenizers::byte_level::BYTE_TO_CHAR;
 ///
 /// All chars in `BYTE_TO_CHAR` are in the range U+0000..U+0143 (max codepoint
 /// 323), so a flat 324-element array gives O(1) lookup.
-const CHAR_TO_BYTE: [u8; 324] = build_char_to_byte();
+const CHAR_TO_BYTE: [Option<u8>; 324] = build_char_to_byte();
 
-const fn build_char_to_byte() -> [u8; 324] {
-    let mut table = [0u8; 324];
+const fn build_char_to_byte() -> [Option<u8>; 324] {
+    let mut table = [None; 324];
     let mut i = 0u16;
     while i < 256 {
         let ch = BYTE_TO_CHAR[i as usize];
-        table[ch as usize] = i as u8;
+        table[ch as usize] = Some(i as u8);
         i += 1;
     }
     table
@@ -30,21 +30,24 @@ pub struct ByteLevelDecoder;
 impl ByteLevelDecoder {
     /// Apply byte-level decoding to a list of token strings.
     ///
-    /// Joins all tokens, maps each char back to its byte value using the
-    /// reverse GPT-2 table, and interprets the bytes as UTF-8.
+    /// Maps each token through the reverse GPT-2 table, preserving tokens
+    /// containing an unmapped character verbatim, then interprets the bytes as UTF-8.
     pub fn decode_chain(&self, tokens: Vec<String>) -> Vec<String> {
-        let joined: String = tokens.into_iter().collect();
-        let mut bytes: Vec<u8> = Vec::with_capacity(joined.len());
-        for c in joined.chars() {
-            let cp = c as usize;
-            if cp < CHAR_TO_BYTE.len() {
-                bytes.push(CHAR_TO_BYTE[cp]);
-            } else {
-                // Characters outside the GPT-2 table (e.g. ｜ U+FF5C, ▁ U+2581
-                // in DeepSeek tokens): preserve their original UTF-8 encoding.
-                let mut buf = [0u8; 4];
-                let s = c.encode_utf8(&mut buf);
-                bytes.extend_from_slice(s.as_bytes());
+        let mut bytes = Vec::with_capacity(tokens.iter().map(String::len).sum());
+        for token in tokens {
+            let start = bytes.len();
+            for c in token.chars() {
+                match CHAR_TO_BYTE.get(c as usize).copied().flatten() {
+                    Some(byte) => bytes.push(byte),
+                    None => {
+                        // Added tokens can contain literal spaces or other chars
+                        // outside the byte alphabet. HF preserves the entire token
+                        // in that case, including any mapped chars before this one.
+                        bytes.truncate(start);
+                        bytes.extend_from_slice(token.as_bytes());
+                        break;
+                    }
+                }
             }
         }
         vec![String::from_utf8_lossy(&bytes).into_owned()]
@@ -93,5 +96,39 @@ mod tests {
             "<\u{FF5C}begin\u{2581}of\u{2581}sentence\u{FF5C}>".to_string(),
         ]);
         assert_eq!(result, vec!["<｜begin▁of▁sentence｜>"]);
+    }
+}
+
+#[cfg(test)]
+mod parity_tests {
+    use super::*;
+    use tokenizers::Decoder;
+
+    #[test]
+    fn literal_added_tokens_match_huggingface() {
+        let cases = [
+            vec!["  ", "spaces"],
+            vec!["def", "Ċ", "    ", "return"],
+            vec!["Ġ literal", "Ġmapped"],
+            vec!["Ġ👩🏽‍💻", "Ġnext"],
+            vec!["\0", "\t", "\n", "\u{7f}"],
+            vec!["Ā"], // Mapped zero byte must remain distinct from an unmapped char.
+        ];
+        for case in cases {
+            let tokens: Vec<String> = case.into_iter().map(str::to_owned).collect();
+            let expected = tokenizers::pre_tokenizers::byte_level::ByteLevel::default()
+                .decode_chain(tokens.clone())
+                .unwrap();
+            assert_eq!(ByteLevelDecoder.decode_chain(tokens), expected);
+        }
+    }
+
+    #[test]
+    fn complete_byte_alphabet_matches_huggingface() {
+        let tokens: Vec<String> = BYTE_TO_CHAR.iter().map(char::to_string).collect();
+        let expected = tokenizers::pre_tokenizers::byte_level::ByteLevel::default()
+            .decode_chain(tokens.clone())
+            .unwrap();
+        assert_eq!(ByteLevelDecoder.decode_chain(tokens), expected);
     }
 }

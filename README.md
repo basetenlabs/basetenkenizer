@@ -48,6 +48,22 @@ ids = tokenizer.encode("Hello, world!", add_special_tokens=False).ids
 Run offline Hugging Face parity with `cargo test --test gemma`. An optional
 full-vocabulary test uses `GEMMA4_TOKENIZER_JSON` and `-- --ignored`.
 
+## RoBERTa
+
+Single-text RoBERTa tokenization supports `<s>` / `</s>` insertion, `<mask>`
+whitespace handling, and older JSON files without an explicit BPE model type.
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("FacebookAI/roberta-base")
+ids = tokenizer.encode("Hello <mask>!", add_special_tokens=True).ids
+```
+
+Sentence pairs and character/word alignment are unsupported. The existing
+`special_tokens_mask` output does not identify post-processor inserted tokens.
+Run offline Hugging Face parity with `cargo test --test roberta`.
+
 ## Kimi K2.7 Code
 
 Load the published tokenizer directly from its model repository:

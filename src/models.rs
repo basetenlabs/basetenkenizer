@@ -25,6 +25,16 @@ impl Model {
     pub fn from_config(config: ModelConfig) -> Result<Self> {
         match config {
             ModelConfig::Bpe(bpe) => Ok(Self::Bpe(*bpe)),
+            // Older tokenizer.json files (including roberta-base) omit type.
+            ModelConfig::Other(value)
+                if value.get("type").is_none()
+                    && value.get("vocab").is_some_and(serde_json::Value::is_object)
+                    && value.get("merges").is_some_and(serde_json::Value::is_array) =>
+            {
+                serde_json::from_value(value)
+                    .map(Self::Bpe)
+                    .map_err(|e| e.to_string())
+            }
             other => {
                 let kind = ModelKind::from(&other);
                 Err(format!("unsupported model type: {kind}"))

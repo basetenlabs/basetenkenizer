@@ -27,6 +27,8 @@ pub struct AddedTokens {
     content_to_id: HashMap<String, u32>,
     /// Set of token IDs marked as special (e.g. BOS/EOS).
     special_ids: HashSet<u32>,
+    /// Only tokenizers with lstrip tokens need the whitespace adjustment pass.
+    lstrip_ids: HashSet<u32>,
 }
 
 /// A segment of the input after added-token splitting.
@@ -225,6 +227,7 @@ impl AddedTokens {
             id_to_content,
             content_to_id,
             special_ids,
+            lstrip_ids: configs.iter().filter(|c| c.lstrip).map(|c| c.id).collect(),
         }))
     }
 
@@ -274,7 +277,23 @@ impl AddedTokens {
     /// emitted as [`Segment::Token`]; the gaps between them as
     /// [`Segment::Text`].
     pub fn split<'a>(&self, input: &'a str) -> Vec<Segment<'a>> {
-        self.all.split(input)
+        let mut segments = self.all.split(input);
+        self.apply_lstrip(&mut segments);
+        segments
+    }
+
+    fn apply_lstrip(&self, segments: &mut [Segment<'_>]) {
+        if self.lstrip_ids.is_empty() {
+            return;
+        }
+        for index in 1..segments.len() {
+            if let Segment::Token(id) = segments[index]
+                && self.lstrip_ids.contains(&id)
+                && let Segment::Text(text) = &mut segments[index - 1]
+            {
+                *text = text.trim_end_matches(char::is_whitespace);
+            }
+        }
     }
 
     /// Split `input` into segments while leaving special added tokens as text.
@@ -288,7 +307,7 @@ impl AddedTokens {
         }
 
         if !self.has_special_tokens {
-            return self.all.split(input);
+            return self.split(input);
         }
         if !self.has_non_special_tokens {
             return vec![Segment::Text(input)];
@@ -338,6 +357,7 @@ impl AddedTokens {
             segments.push(Segment::Text(&input[text_start..cursor]));
         }
 
+        self.apply_lstrip(&mut segments);
         segments
     }
 }
