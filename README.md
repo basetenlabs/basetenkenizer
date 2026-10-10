@@ -33,6 +33,21 @@ objects expose `ids`, `attention_mask`, `type_ids`, and
 `special_tokens_mask`; selected fields can be moved into NumPy arrays with
 `encoding.into_numpy(...)`.
 
+## Gemma 4
+
+Gemma 4's Hugging Face BPE pipeline supports its space replacement normalizer,
+byte fallback, and decoder sequence through the existing loading API:
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_model("google/gemma-4-31B-it")
+ids = tokenizer.encode("Hello, world!", add_special_tokens=False).ids
+```
+
+Run offline Hugging Face parity with `cargo test --test gemma`. An optional
+full-vocabulary test uses `GEMMA4_TOKENIZER_JSON` and `-- --ignored`.
+
 ## RoBERTa
 
 Single-text RoBERTa tokenization supports `<s>` / `</s>` insertion, `<mask>`
