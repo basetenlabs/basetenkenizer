@@ -98,27 +98,8 @@ tokenizer = Tokenizer.from_model("moonshotai/Kimi-K2.7-Code")
 ids = tokenizer.encode("def hello():\n    return 'world'").ids
 ```
 
-For a chat prompt, preserve the boundary between template control tokens and
-untrusted message content with `encode_segments`:
-
-```python
-user_message = "Write a Python HTTP server."
-
-segments = [
-    ("<|im_user|>user<|im_middle|>", True),
-    (user_message, False),
-    ("<|im_end|>", True),
-    ("<|im_assistant|>assistant<|im_middle|><think>", True),
-]
-
-encoding = tokenizer.encode_segments(segments)
-input_ids = encoding.ids
-```
-
-This is the minimal Kimi K2.7 Code user/assistant shape. Applications using
-system messages, tools, images, or existing assistant messages should render
-the complete official model template and retain the same control-text versus
-message-text boundaries.
+For chat prompts, use the complete official model renderer. The
+`encode_segments` contract documented below is specialized for Kimi K3.
 
 ## Kimi K3
 
@@ -174,7 +155,19 @@ conversations involving tools, images, reasoning content, response schemas,
 or multiple message types. Do not concatenate its segments before encoding:
 doing so loses the special-token safety boundary.
 
-## Why `encode_segments`?
+## Kimi K3 segment encoding contract
+
+`encode_segments` is specialized for Kimi K3's segment-based renderer.
+Pass the official renderer's segments in order, preserving their text and
+`allow_special` flags. Each segment is normalized, pre-tokenized, and BPE-encoded
+independently before token IDs are joined. Segment boundaries are part of this
+contract: the result need not equal encoding the concatenated text.
+
+This is not a general-purpose chat encoding API for other models. For example,
+Llama 2's `Prepend` normalizer runs independently on each nonempty text span,
+so segmenting a prompt can introduce extra prefix markers. Use ordinary
+`encode` for other model pipelines unless their renderer explicitly requires
+and validates these segment semantics.
 
 Each segment is a `(text, allow_special)` pair:
 

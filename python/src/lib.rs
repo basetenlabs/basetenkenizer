@@ -1482,7 +1482,15 @@ impl PyTokenizer {
         Py::new(py, encoding)
     }
 
-    /// Encode text segments with per-segment control over added-token matching.
+    /// Encode Kimi K3 renderer segments with per-segment added-token matching.
+    ///
+    /// This API is specialized for Kimi K3's segment-based rendering contract.
+    /// Each segment is normalized, pre-tokenized, and BPE-encoded independently.
+    /// Segment boundaries can change token IDs; equivalence to encoding the
+    /// concatenated prompt is not guaranteed. Normalizers such as Llama 2's
+    /// Prepend run independently on each nonempty text span. Use ordinary
+    /// encoding for other model pipelines unless their renderer explicitly
+    /// requires and validates these segment semantics.
     ///
     /// Each segment is ``(text, allow_special)``. When ``allow_special`` is
     /// false, all added-token matching is bypassed for that segment, matching
