@@ -1107,12 +1107,68 @@ impl PyTokenizer {
         Self::from_model(model, py)
     }
 
-    /// Create a tokenizer from a `tokenizer.json` file.
+    /// Create a tokenizer from tokenizer JSON, a tiktoken model, or a directory.
     #[staticmethod]
     fn from_file(path: &str, py: Python<'_>) -> PyResult<Self> {
-        let json = std::fs::read_to_string(path)
+        let input = std::path::Path::new(path);
+        let resolved = if input.is_dir() {
+            input.join("tokenizer.json")
+        } else {
+            input.to_path_buf()
+        };
+        if (input.is_dir() && !resolved.exists())
+            || input.extension().is_some_and(|ext| ext == "model")
+        {
+            return Self::from_tiktoken_model(path, None, None, py);
+        }
+        let json = std::fs::read_to_string(&resolved)
             .map_err(|e| PyValueError::new_err(format!("cannot read {path}: {e}")))?;
         Self::build_from_str(&json, py)
+    }
+
+    /// Load native tiktoken ranks without requiring the Python tiktoken package.
+    /// With no overrides, an adjacent tokenizer_config.json supplies the regex
+    /// and added tokens. Explicit overrides use the default regex if omitted.
+    #[staticmethod]
+    #[pyo3(signature = (path, *, pattern = None, special_tokens = None))]
+    fn from_tiktoken_model(
+        path: &str,
+        pattern: Option<String>,
+        special_tokens: Option<std::collections::HashMap<String, u32>>,
+        py: Python<'_>,
+    ) -> PyResult<Self> {
+        let inner = py
+            .allow_threads(|| {
+                let path = std::path::Path::new(path);
+                if pattern.is_none() && special_tokens.is_none() {
+                    basetenkenizer::Tokenizer::from_tiktoken_model(path)
+                } else {
+                    let resolved = if path.is_dir() {
+                        path.join("tiktoken.model")
+                    } else {
+                        path.to_path_buf()
+                    };
+                    let config = basetenkenizer::tiktoken::TiktokenConfig::new(
+                        pattern.unwrap_or_else(|| {
+                            basetenkenizer::tiktoken::DEFAULT_PATTERN.to_string()
+                        }),
+                        special_tokens.unwrap_or_default().into_iter().collect(),
+                    );
+                    basetenkenizer::Tokenizer::from_tiktoken_file(&resolved, config)
+                }
+            })
+            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        Ok(Self {
+            state: Arc::new(RwLock::new(TokenizerState {
+                inner,
+                trunc: None,
+                pad: None,
+                post_processor_json: None,
+                chat_template: None,
+                chat_template_renderer: None,
+                special_tokens: basetenkenizer::chat_template::default_special_tokens(),
+            })),
+        })
     }
 
     /// Create a tokenizer from a raw JSON string for `tokenizer.json`.

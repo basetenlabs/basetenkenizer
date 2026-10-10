@@ -49,6 +49,29 @@ Sentence pairs and character/word alignment are unsupported. The existing
 `special_tokens_mask` output does not identify post-processor inserted tokens.
 Run offline Hugging Face parity with `cargo test --test roberta`.
 
+## Native tiktoken.model files
+
+Load a local ranks file or a directory containing `tiktoken.model` and optional
+`tokenizer_config.json` without installing the Python `tiktoken` package:
+
+```python
+from basetenkenizer import Tokenizer
+
+tokenizer = Tokenizer.from_file("/models/Kimi-K3")
+# For a custom ranks file, specify its exact pre-tokenization regex:
+tokenizer = Tokenizer.from_tiktoken_model(
+    "/models/custom.model", pattern=r"\S+|\s+",
+    special_tokens={"<|end|>": 1000},
+)
+```
+
+Kimi configurations automatically select the Kimi regex and reserved-token
+window. Other configurations can declare `pat_str` or `pattern`. A raw file
+without configuration uses the converter's existing default regex; specify
+`pattern` when another tokenization scheme is intended. Identified unknown
+families without a declared regex are rejected. `from_model` continues to load
+Hugging Face `tokenizer.json`; native ranks loading uses local paths.
+
 ## Kimi K2.7 Code
 
 Load the published tokenizer directly from its model repository:

@@ -13,6 +13,9 @@ pub mod normalizers;
 pub mod post_processors;
 pub mod pre_tokenized;
 pub mod pre_tokenizers;
+pub mod tiktoken;
+
+pub use tiktoken::{TiktokenConfig, TiktokenFamily};
 
 use std::{fs, path::Path};
 
@@ -203,6 +206,20 @@ impl Tokenizer {
 
     /// Create a tokenizer from a `tokenizer.json` file.
     pub fn from_file(path: &Path) -> Result<Self, Error> {
+        if path.is_dir() {
+            let json_path = path.join("tokenizer.json");
+            return if json_path.is_file() {
+                Self::from_file(&json_path)
+            } else {
+                Self::from_tiktoken_dir(path)
+            };
+        }
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "model")
+        {
+            return Self::from_tiktoken_model(path);
+        }
         let json: TokenizerJson = serde_json::from_str(&fs::read_to_string(path)?)?;
         Self::build(json)
     }
