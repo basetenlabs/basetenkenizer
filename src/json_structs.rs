@@ -39,6 +39,104 @@ pub struct AddedTokenConfig {
     pub special: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TokenizerConfig {
+    #[serde(default)]
+    pub added_tokens_decoder: HashMap<String, Value>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, Value>,
+}
+
+impl TokenizerConfig {
+    pub fn added_token_configs(&self) -> Result<Vec<AddedTokenConfig>, String> {
+        let mut entries = Vec::with_capacity(self.added_tokens_decoder.len());
+        for (id, value) in &self.added_tokens_decoder {
+            let id = id
+                .parse::<u32>()
+                .map_err(|e| format!("invalid added token id {id:?}: {e}"))?;
+            let mut value = value.clone();
+            let object = value
+                .as_object_mut()
+                .ok_or_else(|| format!("added token {id} is not a JSON object"))?;
+            object.insert("id".into(), Value::from(id));
+            entries.push(
+                serde_json::from_value(value)
+                    .map_err(|e| format!("failed to parse added token {id}: {e}"))?,
+            );
+        }
+        entries.sort_by_key(|entry: &AddedTokenConfig| entry.id);
+        Ok(entries)
+    }
+
+    pub fn tokenizer_class(&self) -> Option<&str> {
+        self.extra.get("tokenizer_class")?.as_str()
+    }
+
+    pub fn auto_map_tokenizers(&self) -> Vec<&str> {
+        let Some(value) = self
+            .extra
+            .get("auto_map")
+            .and_then(|auto_map| auto_map.get("AutoTokenizer"))
+        else {
+            return Vec::new();
+        };
+        match value {
+            Value::String(tokenizer) => vec![tokenizer],
+            Value::Array(tokenizers) => tokenizers.iter().filter_map(Value::as_str).collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn declared_pattern(&self) -> Option<&str> {
+        self.extra
+            .get("pat_str")
+            .and_then(Value::as_str)
+            .or_else(|| self.extra.get("pattern").and_then(Value::as_str))
+    }
+
+    pub fn has_kimi_marker(&self) -> bool {
+        const MARKERS: &[&str] = &[
+            "<|open|>",
+            "<|close|>",
+            "<|sep|>",
+            "<|end_of_msg|>",
+            "<|im_user|>",
+            "<|im_assistant|>",
+            "<|im_middle|>",
+            "<|tool_calls_section_begin|>",
+        ];
+        self.added_tokens_decoder.values().any(|token| {
+            token
+                .get("content")
+                .and_then(Value::as_str)
+                .is_some_and(|content| MARKERS.contains(&content))
+        })
+    }
+}
+
+#[cfg(test)]
+mod tokenizer_config_tests {
+    use super::TokenizerConfig;
+
+    #[test]
+    fn auto_map_tokenizer_accepts_string_and_array_forms() {
+        for auto_tokenizer in [
+            serde_json::json!("tokenization_kimi.TikTokenTokenizer"),
+            serde_json::json!([null, "tokenization_kimi.TikTokenTokenizer"]),
+        ] {
+            let config: TokenizerConfig = serde_json::from_value(serde_json::json!({
+                "tokenizer_class": "TikTokenTokenizer",
+                "auto_map": {"AutoTokenizer": auto_tokenizer}
+            }))
+            .unwrap();
+            assert_eq!(
+                config.auto_map_tokenizers(),
+                ["tokenization_kimi.TikTokenTokenizer"]
+            );
+        }
+    }
+}
+
 /// Parsed `tokenizer.json`.
 ///
 /// The five pipeline steps are deserialized into typed enums. Any other

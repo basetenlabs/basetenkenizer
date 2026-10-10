@@ -90,6 +90,13 @@ class Tokenizer:
     @staticmethod
     def from_file(path: str) -> "Tokenizer": ...
     @staticmethod
+    def from_tiktoken_model(
+        path: str,
+        *,
+        pattern: Optional[str] = None,
+        special_tokens: Optional[dict[str, int]] = None,
+    ) -> "Tokenizer": ...
+    @staticmethod
     def from_json_str(json: str) -> "Tokenizer": ...
     @staticmethod
     def from_model(model: str) -> "Tokenizer": ...
