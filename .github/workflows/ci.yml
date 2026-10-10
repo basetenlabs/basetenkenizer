@@ -58,7 +58,7 @@ jobs:
         run: maturin build --release --out dist && pip install dist/*.whl
 
       - name: Install Python test dependencies
-        run: pip install pytest tiktoken
+        run: pip install pytest tiktoken tokenizers==0.22.2
 
       - name: Smoke test
         run: |
