@@ -510,8 +510,8 @@ impl Split {
             .unwrap_or(4);
         let n_chunks = n_cpus
             .min(text.len() / MIN_CHUNK_SIZE)
-            .min(pcre2.len())
-            .max(2);
+            .max(2)
+            .min(pcre2.len());
         let nominal = text.len() / n_chunks;
 
         // Authority boundaries — each chunk owns matches starting in
@@ -1689,6 +1689,26 @@ mod tests {
         let full = [(0, 10), (15, 20)];
         let result = merge_with_oracle(chunks, &full);
         assert_eq!(result, vec![(0, 10), (15, 20)]);
+    }
+
+    #[test]
+    fn pcre2_isolated_with_single_regex_copy() {
+        // One available CPU means a single PCRE2 copy
+        let reference = Split::from_config(&json!({"Regex": "[a-z]+"}), "Isolated", false).unwrap();
+        let mut single =
+            Split::from_config(&json!({"Regex": "[a-z]+"}), "Isolated", false).unwrap();
+        single.pcre2_regexes.as_mut().unwrap().truncate(1);
+
+        let input = "abc 123 ".repeat(MIN_CHUNK_SIZE / 2); // 32 KB: parallel path
+        let ranges = |split: &Split| {
+            let mut pts = PreTokenizedString::from_text(&input);
+            split.pre_tokenize(&mut pts).unwrap();
+            pts.splits()
+                .iter()
+                .map(|s| s.range.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ranges(&single), ranges(&reference));
     }
 
     // ── integration: long match crossing parallel chunk boundary ─────
