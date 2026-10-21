@@ -228,7 +228,7 @@ review of upstream terms, copyright notices, or target-specific artifacts.
 | `web-sys` | `0.3.85` | `MIT OR Apache-2.0` | L009, L018 | `registry+https://github.com/rust-lang/crates.io-index` |
 | `web-time` | `1.1.0` | `MIT OR Apache-2.0` | L129, L130 | `registry+https://github.com/rust-lang/crates.io-index` |
 | `webpki-roots` | `0.26.11` | `CDLA-Permissive-2.0` | L131 | `registry+https://github.com/rust-lang/crates.io-index` |
-| `webpki-roots` | `1.0.6` | `CDLA-Permissive-2.0` | L131 | `registry+https://github.com/rust-lang/crates.io-index` |
+| `webpki-roots` | `1.0.10` | `CDLA-Permissive-2.0` | L131 | `registry+https://github.com/rust-lang/crates.io-index` |
 | `winapi` | `0.3.9` | `MIT/Apache-2.0` | L023, L132 | `registry+https://github.com/rust-lang/crates.io-index` |
 | `winapi-i686-pc-windows-gnu` | `0.4.0` | `MIT/Apache-2.0` | **missing** | `registry+https://github.com/rust-lang/crates.io-index` |
 | `winapi-x86_64-pc-windows-gnu` | `0.4.0` | `MIT/Apache-2.0` | **missing** | `registry+https://github.com/rust-lang/crates.io-index` |

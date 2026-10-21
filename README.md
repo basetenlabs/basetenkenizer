@@ -13,6 +13,19 @@ Loading by Hugging Face model ID downloads `tokenizer.json` on first use and
 then uses the local Hugging Face cache. Private or gated models use the usual
 `HF_TOKEN` environment variable.
 
+### TLS trust for model downloads
+
+The default `hf-hub` feature (also enabled in Python wheels) downloads model
+files with Rust TLS and a bundled Mozilla root store, not Python `certifi`.
+It requires `webpki-roots >= 1.0.10`, which removes **emSign ECC Root CA - G3**.
+This is a targeted G3 distrust, not removal of every emSign root. TLS certificate
+and hostname verification remain enabled.
+
+Existing wheels and binaries must be rebuilt and redistributed to pick up the
+new bundle; upgrading `certifi` alone does not update it. Local-file tokenization
+does not use this HTTPS path. Rust consumers that only load local files can
+build with `default-features = false` to omit Hub downloading entirely.
+
 ## Encode text
 
 ```python

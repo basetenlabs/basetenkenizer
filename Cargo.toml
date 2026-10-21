@@ -32,7 +32,7 @@ name = "basetenkenizer"
 
 [features]
 default = ["hf-hub"]
-hf-hub = ["dep:hf-hub"]
+hf-hub = ["dep:hf-hub", "dep:webpki-roots"]
 
 [dependencies]
 daachorse = "1.0.0"
@@ -61,6 +61,9 @@ minijinja = { version = "2.22.0", default-features = false, features = [
 minijinja-contrib = { version = "2.22.0", features = ["pycompat"] }
 pcre2 = "0.2"
 hf-hub = { version = "0.4.3", optional = true, default-features = false, features = ["rustls-tls", "ureq"] }
+# Require the Mozilla bundle that removes emSign ECC Root CA - G3. Keep this
+# floor in the manifest: downstream Cargo consumers do not use our lockfile.
+webpki-roots = { version = "1.0.10", optional = true }
 rayon = "1.11.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149", features = ["preserve_order"] }
