@@ -15,6 +15,7 @@ use std::{
     },
 };
 
+use daachorse::{DoubleArrayAhoCorasick, DoubleArrayAhoCorasickBuilder};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -25,12 +26,6 @@ type TokenId = u32;
 type ParsedMergeMap = HashMap<(u32, u32), (u32, u32)>;
 type DecompositionMergeMap = HashMap<(u32, u32), (u32, u32), FxBuildHasher>;
 type Vocab = HashMap<String, u32>;
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-struct TokenEntry {
-    id: TokenId,
-    whole_token: bool,
-}
 
 const INVALID_TOKEN: u32 = u32::MAX;
 
@@ -618,19 +613,19 @@ pub struct Bpe {
     // does not re-arm the gate.
     #[serde(skip)]
     content_affinity_available: AtomicBool,
+    daac: DoubleArrayAhoCorasick<TokenId>,
     merge_map: MergeMap,
     unmerge_map: Vec<(TokenId, TokenId)>,
     token_lens: Vec<u16>,
     shared_cache: SharedCache,
     fused_shared_cache: SharedCache,
     id_to_token: Vec<Arc<str>>,
-    token_to_id: FxHashMap<Arc<str>, TokenEntry>,
+    token_to_id: FxHashMap<Arc<str>, u32>,
     raw_token_to_id: Option<Arc<FxHashMap<Vec<u8>, u32>>>,
     byte_to_initial_token: [u32; 256],
     ranked_merge_map: RankedMergeMap,
     byte_pair_initial: Vec<(u32, u32)>,
     merge_adj: MergeAdjacency,
-    orphan: Vec<bool>,
     ignore_merges: bool,
     byte_fallback_ids: Option<Arc<[Option<u32>; 256]>>,
 }
@@ -812,11 +807,6 @@ impl Bpe {
                     .ok_or_else(|| format!("non-contiguous tokens - token {t} is missing"))
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
-        if id_to_token.iter().any(|text| text.is_empty()) {
-            return Err(
-                "error building DAAC: InvalidArgumentError: pattern.len() must be >= 1".into(),
-            );
-        }
 
         let mut char_to_id = HashMap::with_capacity_and_hasher(324, FxBuildHasher);
         for (text, &id) in vocab {
@@ -854,6 +844,16 @@ impl Bpe {
                 Decomposition::CharsNotInVocab => {}
             }
         }
+
+        // Keep the prefix automaton on the encoding path. Hashing the entire
+        // input before checking caches regresses long cached pretokens.
+        let daac =
+            DoubleArrayAhoCorasickBuilder::new()
+                .match_kind(daachorse::MatchKind::LeftmostLongest)
+                .build_with_values(id_to_token.iter().enumerate().filter_map(|(id, text)| {
+                    (!is_orphan[id]).then_some((text.as_ref(), id as u32))
+                }))
+                .map_err(|e| format!("error building DAAC: {e}"))?;
 
         let token_lens: Vec<u16> = id_to_token
             .iter()
@@ -899,18 +899,17 @@ impl Bpe {
 
         let mut token_to_id = HashMap::with_capacity_and_hasher(vocab.len(), FxBuildHasher);
         for (text, &id) in vocab {
-            let (key, whole_token) = match id_to_token.get(id as usize) {
-                Some(existing) if existing.as_ref() == text => {
-                    (Arc::clone(existing), !is_orphan[id as usize])
-                }
-                _ => (Arc::<str>::from(text.as_str()), false),
+            let key = match id_to_token.get(id as usize) {
+                Some(existing) if existing.as_ref() == text => Arc::clone(existing),
+                _ => Arc::<str>::from(text.as_str()),
             };
-            token_to_id.insert(key, TokenEntry { id, whole_token });
+            token_to_id.insert(key, id);
         }
 
         Ok(Self {
             id: BPE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             content_affinity_available: AtomicBool::new(true),
+            daac,
             merge_map: flat_merge_map,
             unmerge_map,
             token_lens,
@@ -923,7 +922,6 @@ impl Bpe {
             ranked_merge_map,
             byte_pair_initial,
             merge_adj,
-            orphan: is_orphan,
             ignore_merges: false,
             byte_fallback_ids: None,
         })
@@ -967,9 +965,8 @@ impl Bpe {
     }
 
     fn next_match(&self, input: &str) -> Option<TokenId> {
-        self.token_to_id
-            .get(input)
-            .and_then(|entry| entry.whole_token.then_some(entry.id))
+        let m = self.daac.leftmost_find_iter(input).next()?;
+        (m.start() == 0).then(|| m.value())
     }
 
     pub fn tokenize(&self, input: &str) -> Result<Vec<TokenId>> {
@@ -1049,8 +1046,8 @@ impl Bpe {
                 let mut buf = [0u8; 4];
                 let s = ch.encode_utf8(&mut buf);
                 let mut fallback = [0; 4];
-                let ids = if let Some(entry) = self.token_to_id.get(s) {
-                    std::slice::from_ref(&entry.id)
+                let ids = if let Some(id) = self.token_to_id.get(s) {
+                    std::slice::from_ref(id)
                 } else if let Some(byte_ids) = &self.byte_fallback_ids {
                     for (index, byte) in s.bytes().enumerate() {
                         fallback[index] = byte_ids[byte as usize]
@@ -1506,7 +1503,7 @@ impl Bpe {
     }
 
     pub fn token_to_id(&self, token: &str) -> Option<u32> {
-        self.token_to_id.get(token).map(|entry| entry.id)
+        self.token_to_id.get(token).copied()
     }
 
     pub fn vocab_size(&self) -> usize {
@@ -1524,6 +1521,7 @@ impl Clone for Bpe {
         Self {
             id: BPE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             content_affinity_available: AtomicBool::new(true),
+            daac: self.daac.clone(),
             merge_map: self.merge_map.clone(),
             unmerge_map: self.unmerge_map.clone(),
             token_lens: self.token_lens.clone(),
@@ -1536,7 +1534,6 @@ impl Clone for Bpe {
             ranked_merge_map: self.ranked_merge_map.clone(),
             byte_pair_initial: self.byte_pair_initial.clone(),
             merge_adj: self.merge_adj.clone(),
-            orphan: self.orphan.clone(),
             ignore_merges: self.ignore_merges,
             byte_fallback_ids: self.byte_fallback_ids.clone(),
         }
@@ -1558,7 +1555,7 @@ impl PartialEq for Bpe {
             && self.merge_map == other.merge_map
             && self.unmerge_map == other.unmerge_map
             && self.token_lens == other.token_lens
-            && self.orphan == other.orphan
+            && self.daac == other.daac
             && self.ignore_merges == other.ignore_merges
             && self.byte_fallback_ids == other.byte_fallback_ids
     }

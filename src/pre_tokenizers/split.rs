@@ -193,10 +193,15 @@ fn pcre2_source(source: &str) -> Option<Cow<'_, str>> {
     None
 }
 
-/// Compile `n` independent regex handles from `source`.
+/// Compile `n` independent regex programs from `source`.
 fn compile_regexes(source: &str, n: usize) -> Result<Vec<Regex>, Error> {
-    let regex = Regex::new(source)?;
-    Ok(vec![regex; n])
+    // Fancy VM clones share delegate caches through Arc<Prog>. Separate
+    // compilation preserves independent caches for parallel matching.
+    let mut regexes = Vec::with_capacity(n);
+    for _ in 0..n {
+        regexes.push(Regex::new(source)?);
+    }
+    Ok(regexes)
 }
 
 impl TryFrom<SplitRaw> for Split {
