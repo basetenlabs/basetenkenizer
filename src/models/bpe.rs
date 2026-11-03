@@ -15,7 +15,6 @@ use std::{
     },
 };
 
-use daachorse::{DoubleArrayAhoCorasick, DoubleArrayAhoCorasickBuilder};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -24,7 +23,14 @@ use crate::pre_tokenizers::BYTE_TO_CHAR;
 
 type TokenId = u32;
 type ParsedMergeMap = HashMap<(u32, u32), (u32, u32)>;
+type DecompositionMergeMap = HashMap<(u32, u32), (u32, u32), FxBuildHasher>;
 type Vocab = HashMap<String, u32>;
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct TokenEntry {
+    id: TokenId,
+    whole_token: bool,
+}
 
 const INVALID_TOKEN: u32 = u32::MAX;
 
@@ -612,20 +618,19 @@ pub struct Bpe {
     // does not re-arm the gate.
     #[serde(skip)]
     content_affinity_available: AtomicBool,
-    daac: DoubleArrayAhoCorasick<TokenId>,
     merge_map: MergeMap,
     unmerge_map: Vec<(TokenId, TokenId)>,
-    next_prefix_map: Vec<TokenId>,
     token_lens: Vec<u16>,
     shared_cache: SharedCache,
     fused_shared_cache: SharedCache,
-    id_to_token: Vec<String>,
-    token_to_id: FxHashMap<String, u32>,
+    id_to_token: Vec<Arc<str>>,
+    token_to_id: FxHashMap<Arc<str>, TokenEntry>,
     raw_token_to_id: Option<Arc<FxHashMap<Vec<u8>, u32>>>,
     byte_to_initial_token: [u32; 256],
     ranked_merge_map: RankedMergeMap,
     byte_pair_initial: Vec<(u32, u32)>,
     merge_adj: MergeAdjacency,
+    orphan: Vec<bool>,
     ignore_merges: bool,
     byte_fallback_ids: Option<Arc<[Option<u32>; 256]>>,
 }
@@ -681,12 +686,15 @@ enum Decomposition {
     Stuck,
 }
 
-fn encoding_decomposition(text: &str, vocab: &Vocab, merge_map: &ParsedMergeMap) -> Decomposition {
-    let mut tokens: Vec<TokenId> = Vec::new();
+fn encoding_decomposition(
+    text: &str,
+    char_to_id: &FxHashMap<char, TokenId>,
+    merge_map: &DecompositionMergeMap,
+    tokens: &mut Vec<TokenId>,
+) -> Decomposition {
+    tokens.clear();
     for ch in text.chars() {
-        let mut buf = [0u8; 4];
-        let s = ch.encode_utf8(&mut buf);
-        match vocab.get(s) {
+        match char_to_id.get(&ch) {
             Some(&tid) => tokens.push(tid),
             None => return Decomposition::CharsNotInVocab,
         }
@@ -766,65 +774,95 @@ impl Bpe {
             return Err("cannot build Bpe with empty vocabulary".into());
         }
 
-        let vocab_r: std::collections::BTreeMap<u32, &str> =
-            vocab.iter().map(|(s, &id)| (id, s.as_str())).collect();
-
-        let id_to_token: Vec<String> = (0..=*vocab_r.keys().max().unwrap())
-            .map(|t| {
-                vocab_r
-                    .get(&t)
+        let mut reverse_by_id: HashMap<u32, &str, FxBuildHasher> =
+            HashMap::with_capacity_and_hasher(vocab.len(), FxBuildHasher);
+        for (text, &id) in vocab {
+            reverse_by_id.insert(id, text.as_str());
+        }
+        let max_token = match reverse_by_id.keys().copied().max() {
+            Some(max_token) => max_token,
+            None => return Err("cannot build Bpe with empty vocabulary".into()),
+        };
+        let unique_ids = reverse_by_id.len();
+        if max_token as u64 + 1 != unique_ids as u64 {
+            let mut ids: Vec<u32> = reverse_by_id.keys().copied().collect();
+            ids.sort_unstable();
+            let mut expected = 0u32;
+            for id in ids {
+                if id != expected {
+                    return Err(format!(
+                        "non-contiguous tokens - token {expected} is missing"
+                    ));
+                }
+                expected = expected.saturating_add(1);
+            }
+            return Err(format!(
+                "non-contiguous tokens - token {expected} is missing"
+            ));
+        }
+        let mut reverse_vocab: Vec<Option<&str>> = vec![None; unique_ids];
+        for (&id, text) in &reverse_by_id {
+            reverse_vocab[id as usize] = Some(*text);
+        }
+        let id_to_token: Vec<Arc<str>> = reverse_vocab
+            .iter()
+            .enumerate()
+            .map(|(t, text)| {
+                text.map(Arc::<str>::from)
                     .ok_or_else(|| format!("non-contiguous tokens - token {t} is missing"))
-                    .map(|s| s.to_string())
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        if id_to_token.iter().any(|text| text.is_empty()) {
+            return Err(
+                "error building DAAC: InvalidArgumentError: pattern.len() must be >= 1".into(),
+            );
+        }
 
-        let max_token = vocab_r.keys().max().copied().unwrap();
+        let mut char_to_id = HashMap::with_capacity_and_hasher(324, FxBuildHasher);
+        for (text, &id) in vocab {
+            let mut chars = text.chars();
+            if let (Some(ch), None) = (chars.next(), chars.next()) {
+                char_to_id.insert(ch, id);
+            }
+        }
+        let mut decomposition_merge_map =
+            HashMap::with_capacity_and_hasher(merge_map.len(), FxBuildHasher);
+        decomposition_merge_map.extend(merge_map.iter().map(|(&pair, &value)| (pair, value)));
 
-        let mut unmerge_map = (0..=max_token).map(|t| (t, t)).collect::<Vec<_>>();
-        let mut is_orphan = vec![false; (max_token + 1) as usize];
-        for (&tid, text) in &vocab_r {
+        let vocab_size = id_to_token.len();
+        let mut unmerge_map = (0..vocab_size)
+            .map(|t| (t as u32, t as u32))
+            .collect::<Vec<_>>();
+        let mut is_orphan = vec![false; vocab_size];
+        let mut decomposition_tokens = Vec::new();
+        for (tid, text) in id_to_token.iter().enumerate() {
             if text.chars().count() < 2 {
                 continue;
             }
-            match encoding_decomposition(text, vocab, &merge_map) {
+            match encoding_decomposition(
+                text,
+                &char_to_id,
+                &decomposition_merge_map,
+                &mut decomposition_tokens,
+            ) {
                 Decomposition::Pair(left, right) => {
-                    unmerge_map[tid as usize] = (left, right);
+                    unmerge_map[tid] = (left, right);
                 }
                 Decomposition::Stuck => {
-                    is_orphan[tid as usize] = true;
+                    is_orphan[tid] = true;
                 }
                 Decomposition::CharsNotInVocab => {}
             }
         }
 
-        let daac = DoubleArrayAhoCorasickBuilder::new()
-            .match_kind(daachorse::MatchKind::LeftmostLongest)
-            .build_with_values(vocab_r.iter().filter_map(|(&token, pattern)| {
-                (!is_orphan[token as usize]).then_some((pattern, token))
-            }))
-            .map_err(|e| format!("error building DAAC: {e}"))?;
-
-        let token_lens: Vec<u16> = (0..=max_token)
-            .map(|t| {
-                u16::try_from(vocab_r[&t].len())
-                    .map_err(|_| format!("token {t} length {} exceeds u16::MAX", vocab_r[&t].len()))
+        let token_lens: Vec<u16> = id_to_token
+            .iter()
+            .enumerate()
+            .map(|(t, text)| {
+                u16::try_from(text.len())
+                    .map_err(|_| format!("token {t} length {} exceeds u16::MAX", text.len()))
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        let next_prefix_map: Vec<TokenId> = (0..=max_token)
-            .map(|token| {
-                let token_str = &vocab_r[&token];
-                let Some((last_char_start, _)) = token_str.char_indices().next_back() else {
-                    return INVALID_TOKEN;
-                };
-                if last_char_start == 0 {
-                    return INVALID_TOKEN;
-                }
-                daac.leftmost_find_iter(&token_str[..last_char_start])
-                    .next()
-                    .map_or(INVALID_TOKEN, |m| m.value())
-            })
-            .collect();
 
         let flat_merge_map = MergeMap::from_parsed(&merge_map);
         let ranked_merge_map = RankedMergeMap::from_parsed(&merge_map);
@@ -857,30 +895,35 @@ impl Bpe {
             }
         }
 
-        let vocab_size = id_to_token.len();
         let merge_adj = MergeAdjacency::from_parsed(&merge_map, vocab_size);
+
+        let mut token_to_id = HashMap::with_capacity_and_hasher(vocab.len(), FxBuildHasher);
+        for (text, &id) in vocab {
+            let (key, whole_token) = match id_to_token.get(id as usize) {
+                Some(existing) if existing.as_ref() == text => {
+                    (Arc::clone(existing), !is_orphan[id as usize])
+                }
+                _ => (Arc::<str>::from(text.as_str()), false),
+            };
+            token_to_id.insert(key, TokenEntry { id, whole_token });
+        }
 
         Ok(Self {
             id: BPE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             content_affinity_available: AtomicBool::new(true),
-            daac,
             merge_map: flat_merge_map,
             unmerge_map,
-            next_prefix_map,
             token_lens,
             shared_cache: SharedCache::new(),
             fused_shared_cache: SharedCache::new(),
             id_to_token,
-            token_to_id: {
-                let mut m = HashMap::with_capacity_and_hasher(vocab.len(), FxBuildHasher);
-                m.extend(vocab.iter().map(|(k, v)| (k.clone(), *v)));
-                m
-            },
+            token_to_id,
             raw_token_to_id: None,
             byte_to_initial_token,
             ranked_merge_map,
             byte_pair_initial,
             merge_adj,
+            orphan: is_orphan,
             ignore_merges: false,
             byte_fallback_ids: None,
         })
@@ -924,8 +967,9 @@ impl Bpe {
     }
 
     fn next_match(&self, input: &str) -> Option<TokenId> {
-        let m = self.daac.leftmost_find_iter(input).next()?;
-        (m.start() == 0).then(|| m.value())
+        self.token_to_id
+            .get(input)
+            .and_then(|entry| entry.whole_token.then_some(entry.id))
     }
 
     pub fn tokenize(&self, input: &str) -> Result<Vec<TokenId>> {
@@ -1005,8 +1049,8 @@ impl Bpe {
                 let mut buf = [0u8; 4];
                 let s = ch.encode_utf8(&mut buf);
                 let mut fallback = [0; 4];
-                let ids = if let Some(id) = self.token_to_id.get(s) {
-                    std::slice::from_ref(id)
+                let ids = if let Some(entry) = self.token_to_id.get(s) {
+                    std::slice::from_ref(&entry.id)
                 } else if let Some(byte_ids) = &self.byte_fallback_ids {
                     for (index, byte) in s.bytes().enumerate() {
                         fallback[index] = byte_ids[byte as usize]
@@ -1458,11 +1502,11 @@ impl Bpe {
     }
 
     pub fn id_to_token(&self, id: u32) -> Option<&str> {
-        self.id_to_token.get(id as usize).map(String::as_str)
+        self.id_to_token.get(id as usize).map(Arc::as_ref)
     }
 
     pub fn token_to_id(&self, token: &str) -> Option<u32> {
-        self.token_to_id.get(token).copied()
+        self.token_to_id.get(token).map(|entry| entry.id)
     }
 
     pub fn vocab_size(&self) -> usize {
@@ -1480,10 +1524,8 @@ impl Clone for Bpe {
         Self {
             id: BPE_ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             content_affinity_available: AtomicBool::new(true),
-            daac: self.daac.clone(),
             merge_map: self.merge_map.clone(),
             unmerge_map: self.unmerge_map.clone(),
-            next_prefix_map: self.next_prefix_map.clone(),
             token_lens: self.token_lens.clone(),
             shared_cache: SharedCache::new(),
             fused_shared_cache: SharedCache::new(),
@@ -1494,6 +1536,7 @@ impl Clone for Bpe {
             ranked_merge_map: self.ranked_merge_map.clone(),
             byte_pair_initial: self.byte_pair_initial.clone(),
             merge_adj: self.merge_adj.clone(),
+            orphan: self.orphan.clone(),
             ignore_merges: self.ignore_merges,
             byte_fallback_ids: self.byte_fallback_ids.clone(),
         }
@@ -1511,11 +1554,11 @@ impl fmt::Debug for Bpe {
 
 impl PartialEq for Bpe {
     fn eq(&self, other: &Self) -> bool {
-        self.daac == other.daac
+        self.id_to_token == other.id_to_token
             && self.merge_map == other.merge_map
             && self.unmerge_map == other.unmerge_map
-            && self.next_prefix_map == other.next_prefix_map
             && self.token_lens == other.token_lens
+            && self.orphan == other.orphan
             && self.ignore_merges == other.ignore_merges
             && self.byte_fallback_ids == other.byte_fallback_ids
     }
@@ -1719,6 +1762,92 @@ mod tests {
         let second = bpe.tokenize("ab").unwrap();
         assert_eq!(first, second);
         assert_eq!(first, vec![2]);
+    }
+
+    #[test]
+    fn orphan_token_does_not_shortcut_character_merge() {
+        let vocab: Vocab = [("a", 0), ("b", 1), ("c", 2), ("abc", 3)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let bpe = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap();
+
+        assert_eq!(bpe.tokenize("a").unwrap(), vec![0]);
+        assert_eq!(bpe.tokenize("abc").unwrap(), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn non_contiguous_vocab_ids_are_rejected() {
+        let vocab: Vocab = [("a", 0), ("c", 2)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+
+        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
+        assert!(error.contains("non-contiguous tokens - token 1 is missing"));
+    }
+
+    #[test]
+    fn sparse_vocab_ids_are_rejected_without_allocating_the_id_range() {
+        let vocab: Vocab = [("a", 0), ("b", u32::MAX)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
+        assert_eq!(error, "non-contiguous tokens - token 1 is missing");
+
+        let vocab: Vocab = [("a", 10)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
+        assert_eq!(error, "non-contiguous tokens - token 0 is missing");
+    }
+
+    #[test]
+    fn equality_includes_canonical_token_text_and_survives_clone() {
+        let vocab_a: Vocab = [("aa", 0), ("bb", 1)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let vocab_b: Vocab = [("cc", 0), ("dd", 1)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let bpe_a = Bpe::new(&vocab_a, parse_merges(&vocab_a, &[]).unwrap()).unwrap();
+        let bpe_a_again = Bpe::new(&vocab_a, parse_merges(&vocab_a, &[]).unwrap()).unwrap();
+        let bpe_b = Bpe::new(&vocab_b, parse_merges(&vocab_b, &[]).unwrap()).unwrap();
+
+        assert_eq!(bpe_a, bpe_a.clone());
+        assert_eq!(bpe_a, bpe_a_again);
+        assert_ne!(bpe_a, bpe_b);
+    }
+
+    #[test]
+    fn empty_vocab_token_is_rejected_like_daac() {
+        let vocab: Vocab = [("", 0), ("a", 1)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
+        assert_eq!(
+            error,
+            "error building DAAC: InvalidArgumentError: pattern.len() must be >= 1"
+        );
+    }
+
+    #[test]
+    fn duplicate_vocab_ids_keep_all_token_lookups() {
+        let vocab: Vocab = [("a", 0), ("b", 0), ("c", 1)]
+            .into_iter()
+            .map(|(s, id)| (s.to_string(), id))
+            .collect();
+        let bpe = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap();
+
+        assert_eq!(bpe.token_to_id("a"), Some(0));
+        assert_eq!(bpe.token_to_id("b"), Some(0));
+        assert_eq!(bpe.tokenize("a").unwrap(), vec![0]);
+        assert_eq!(bpe.tokenize("b").unwrap(), vec![0]);
     }
 
     #[test]
