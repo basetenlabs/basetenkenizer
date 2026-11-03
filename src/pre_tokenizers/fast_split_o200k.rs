@@ -159,8 +159,9 @@ fn o200k_classes_unpacked() -> Vec<u8> {
 }
 
 fn pack_nibbles(classes: &[u8]) -> Box<[u8]> {
-    let mut packed = vec![0u8; classes.len() / 2].into_boxed_slice();
-    for (i, chunk) in classes.chunks_exact(2).enumerate() {
+    let (chunks, _) = classes.as_chunks::<2>();
+    let mut packed = vec![0u8; chunks.len()].into_boxed_slice();
+    for (i, chunk) in chunks.iter().enumerate() {
         packed[i] = chunk[0] | (chunk[1] << 4);
     }
     packed
@@ -624,7 +625,10 @@ mod tests {
     use super::*;
 
     fn regex_spans(pattern: &str, s: &str) -> Vec<(usize, usize)> {
-        let re = fancy_regex::Regex::new(pattern).unwrap();
+        compiled_regex_spans(&fancy_regex::Regex::new(pattern).unwrap(), s)
+    }
+
+    fn compiled_regex_spans(re: &fancy_regex::Regex, s: &str) -> Vec<(usize, usize)> {
         re.find_iter(s)
             .map(|m| {
                 let m = m.unwrap();
@@ -741,6 +745,8 @@ mod tests {
              한¡½٣๒Ⅷ😀🚀\u{301}\u{5BF}\u{10FFFD}"
             .chars()
             .collect();
+        let kimi = fancy_regex::Regex::new(KIMI_PATTERN).unwrap();
+        let o200k = fancy_regex::Regex::new(O200K_PATTERN).unwrap();
         let mut rng: u64 = 0xC0FFEE_1234_5678;
         for round in 0..6000 {
             rng = rng
@@ -756,12 +762,12 @@ mod tests {
             }
             assert_eq!(
                 fast_spans(kimi_advance, &s),
-                regex_spans(KIMI_PATTERN, &s),
+                compiled_regex_spans(&kimi, &s),
                 "kimi fuzz mismatch round {round} on {s:?}"
             );
             assert_eq!(
                 fast_spans(o200k_advance, &s),
-                regex_spans(O200K_PATTERN, &s),
+                compiled_regex_spans(&o200k, &s),
                 "o200k fuzz mismatch round {round} on {s:?}"
             );
         }
