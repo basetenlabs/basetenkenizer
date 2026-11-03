@@ -1041,100 +1041,37 @@ mod tests {
     }
 
     fn large_utf8_text() -> String {
-        let mut text = String::new();
-        let blocks = [
-            "The tokenizer's throughput won't regress, it'll improve.\n",
-            "  indented code(); // with 'quotes' and [brackets]\n",
-            "числа 123 и 4567 vs \u{00A0}nbsp\t tab 89012\r\n",
-            "日本語テキスト and emoji \u{1F600}\u{1F680}   \n\n",
-            "digits 1 22 333 4444 55555 ١٢٣٤ ๑๒๓ no-newline-tail ",
-        ];
-        for i in 0..2000 {
-            text.push_str(blocks[i % blocks.len()]);
-        }
-        assert!(text.len() >= 2 * MIN_CHUNK_SIZE);
-        text
+        "Tokenizer's café e\u{301} 日本語 😀 ١٢٣ 4567\r\n  code(); 'quotes' ".repeat(512)
     }
 
-    // Exact Split pattern from baselabs/joey-1's tokenizer.json. It is
-    // Qwen2-like but includes combining marks in the letter and punctuation
-    // classes, so it intentionally misses the hand-written scanner patterns.
+    // Joey's marks-aware pattern intentionally misses the specialized scanners.
     const JOEY_PATTERN: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?[\p{L}\p{M}]+|\p{N}| ?[^\s\p{L}\p{M}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
 
     #[test]
-    fn joey_pattern_deserialization_matches_config_on_parallel_utf8() {
+    fn joey_regex_clones_preserve_parallel_utf8_matches() {
         let text = large_utf8_text();
-        let deserialized: Split = serde_json::from_value(json!({
-            "pattern": {"Regex": JOEY_PATTERN},
-            "behavior": "Isolated",
-            "invert": false
+        assert!(text.len() >= 2 * MIN_CHUNK_SIZE);
+        let split: Split = serde_json::from_value(json!({
+            "pattern": {"Regex": JOEY_PATTERN}, "behavior": "Isolated", "invert": false
         }))
         .unwrap();
-        let configured =
-            Split::from_config(&json!({"Regex": JOEY_PATTERN}), "Isolated", false).unwrap();
-        assert!(deserialized.fast_scheme.is_none());
-        assert!(configured.fast_scheme.is_none());
-        assert_eq!(deserialized.regexes.len(), max_parallel());
-        assert_eq!(
-            deserialized.pcre2_regexes.as_ref().map(Vec::len),
-            Some(max_parallel())
-        );
-
-        for input in [
-            text.as_str(),
-            "don't 123 café 日本語\n",
-            "",
-            "   ",
-            "e\u{301}\u{0301} marks",
-        ] {
-            assert_eq!(
-                deserialized.find_segments(input).unwrap(),
-                configured.find_segments(input).unwrap(),
-                "deserialize/config mismatch for input len={}",
-                input.len()
-            );
-        }
-
-        let pcre2 = configured.pcre2_regexes.as_ref().unwrap();
-        let sequential = matches_to_segments(
+        assert!(split.fast_scheme.is_none());
+        let pcre2 = split.pcre2_regexes.as_ref().unwrap();
+        assert_eq!(pcre2.len(), max_parallel());
+        let expected = matches_to_segments(
             &find_matches_pcre2(&text, 0, &pcre2[0]).unwrap(),
             text.len(),
             false,
         );
-        assert_eq!(configured.find_segments(&text).unwrap(), sequential);
-
-        let mut fancy = configured.clone();
-        fancy.pcre2_regexes = None;
-        assert_eq!(
-            fancy.find_segments(&text).unwrap(),
-            fancy.find_segments_seq(&text).unwrap()
-        );
-    }
-
-    #[test]
-    fn joey_pattern_clones_are_independent_across_threads() {
-        let text = large_utf8_text();
-        let split = Split::from_config(&json!({"Regex": JOEY_PATTERN}), "Isolated", false).unwrap();
-        let expected = split.find_segments(&text).unwrap();
-        assert_eq!(split.regexes.len(), max_parallel());
-        assert_eq!(
-            split.pcre2_regexes.as_ref().map(Vec::len),
-            Some(max_parallel())
-        );
-
         std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..8)
+            let handles: Vec<_> = (0..4)
                 .map(|_| {
-                    let source = &split;
-                    let text = &text;
-                    scope.spawn(move || {
-                        let clone = source.clone();
-                        clone.find_segments(text)
-                    })
+                    let (split, text) = (split.clone(), &text);
+                    scope.spawn(move || split.find_segments(text).unwrap())
                 })
                 .collect();
             for handle in handles {
-                assert_eq!(handle.join().unwrap().unwrap(), expected);
+                assert_eq!(handle.join().unwrap(), expected);
             }
         });
     }

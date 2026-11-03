@@ -1762,43 +1762,54 @@ mod tests {
     }
 
     #[test]
-    fn orphan_token_does_not_shortcut_character_merge() {
-        let vocab: Vocab = [("a", 0), ("b", 1), ("c", 2), ("abc", 3)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-        let bpe = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap();
-
-        assert_eq!(bpe.tokenize("a").unwrap(), vec![0]);
-        assert_eq!(bpe.tokenize("abc").unwrap(), vec![0, 1, 2]);
+    fn vocabulary_lookup_and_encoding_preserve_orphans_and_duplicate_ids() {
+        for (entries, input, expected) in [
+            (
+                vec![("a", 0), ("b", 1), ("c", 2), ("abc", 3)],
+                "abc",
+                vec![0, 1, 2],
+            ),
+            (vec![("a", 0), ("b", 0), ("c", 1)], "b", vec![0]),
+        ] {
+            let vocab: Vocab = entries
+                .into_iter()
+                .map(|(s, id)| (s.to_owned(), id))
+                .collect();
+            let bpe = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap();
+            for (token, &id) in &vocab {
+                assert_eq!(bpe.token_to_id(token), Some(id));
+            }
+            assert_eq!(bpe.tokenize(input).unwrap(), expected);
+        }
     }
 
     #[test]
-    fn non_contiguous_vocab_ids_are_rejected() {
-        let vocab: Vocab = [("a", 0), ("c", 2)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-
-        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
-        assert!(error.contains("non-contiguous tokens - token 1 is missing"));
-    }
-
-    #[test]
-    fn sparse_vocab_ids_are_rejected_without_allocating_the_id_range() {
-        let vocab: Vocab = [("a", 0), ("b", u32::MAX)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
-        assert_eq!(error, "non-contiguous tokens - token 1 is missing");
-
-        let vocab: Vocab = [("a", 10)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
-        assert_eq!(error, "non-contiguous tokens - token 0 is missing");
+    fn invalid_vocabularies_are_rejected_before_dense_allocation() {
+        for (entries, expected) in [
+            (
+                vec![("a", 0), ("c", 2)],
+                "non-contiguous tokens - token 1 is missing",
+            ),
+            (
+                vec![("a", 0), ("b", u32::MAX)],
+                "non-contiguous tokens - token 1 is missing",
+            ),
+            (
+                vec![("a", 10)],
+                "non-contiguous tokens - token 0 is missing",
+            ),
+            (
+                vec![("", 0), ("a", 1)],
+                "error building DAAC: InvalidArgumentError: pattern.len() must be >= 1",
+            ),
+        ] {
+            let vocab: Vocab = entries
+                .into_iter()
+                .map(|(s, id)| (s.to_owned(), id))
+                .collect();
+            let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
+            assert_eq!(error, expected);
+        }
     }
 
     #[test]
@@ -1818,33 +1829,6 @@ mod tests {
         assert_eq!(bpe_a, bpe_a.clone());
         assert_eq!(bpe_a, bpe_a_again);
         assert_ne!(bpe_a, bpe_b);
-    }
-
-    #[test]
-    fn empty_vocab_token_is_rejected_like_daac() {
-        let vocab: Vocab = [("", 0), ("a", 1)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-        let error = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap_err();
-        assert_eq!(
-            error,
-            "error building DAAC: InvalidArgumentError: pattern.len() must be >= 1"
-        );
-    }
-
-    #[test]
-    fn duplicate_vocab_ids_keep_all_token_lookups() {
-        let vocab: Vocab = [("a", 0), ("b", 0), ("c", 1)]
-            .into_iter()
-            .map(|(s, id)| (s.to_string(), id))
-            .collect();
-        let bpe = Bpe::new(&vocab, parse_merges(&vocab, &[]).unwrap()).unwrap();
-
-        assert_eq!(bpe.token_to_id("a"), Some(0));
-        assert_eq!(bpe.token_to_id("b"), Some(0));
-        assert_eq!(bpe.tokenize("a").unwrap(), vec![0]);
-        assert_eq!(bpe.tokenize("b").unwrap(), vec![0]);
     }
 
     #[test]

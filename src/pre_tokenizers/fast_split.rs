@@ -653,7 +653,10 @@ mod tests {
     use super::*;
 
     fn regex_spans(pattern: &str, s: &str) -> Vec<(usize, usize)> {
-        let re = fancy_regex::Regex::new(pattern).unwrap();
+        compiled_regex_spans(&fancy_regex::Regex::new(pattern).unwrap(), s)
+    }
+
+    fn compiled_regex_spans(re: &fancy_regex::Regex, s: &str) -> Vec<(usize, usize)> {
         re.find_iter(s)
             .map(|m| {
                 let m = m.unwrap();
@@ -780,6 +783,16 @@ mod tests {
              éñÜ日本語һЖ¡½٣๒Ⅷ😀🚀\u{301}\u{10FFFD}"
             .chars()
             .collect();
+        let schemes = [
+            (
+                FastSplitScheme::Qwen2,
+                fancy_regex::Regex::new(QWEN2_PATTERN).unwrap(),
+            ),
+            (
+                FastSplitScheme::Qwen2N3,
+                fancy_regex::Regex::new(QWEN2_N3_PATTERN).unwrap(),
+            ),
+        ];
         let mut rng: u64 = 0x1234_5678_9ABC_DEF0;
         for round in 0..4000 {
             rng = rng
@@ -793,12 +806,9 @@ mod tests {
                     .wrapping_add(1442695040888963407);
                 s.push(pool[(rng >> 33) as usize % pool.len()]);
             }
-            for (scheme, pattern) in [
-                (FastSplitScheme::Qwen2, QWEN2_PATTERN),
-                (FastSplitScheme::Qwen2N3, QWEN2_N3_PATTERN),
-            ] {
-                let fast = fast_spans(scheme, &s);
-                let reference = regex_spans(pattern, &s);
+            for (scheme, regex) in &schemes {
+                let fast = fast_spans(*scheme, &s);
+                let reference = compiled_regex_spans(regex, &s);
                 assert_eq!(fast, reference, "fuzz mismatch round {round} on {s:?}");
             }
         }
