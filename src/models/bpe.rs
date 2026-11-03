@@ -43,6 +43,9 @@ pub(crate) fn pretoken_hash(bytes: &[u8]) -> u64 {
             .wrapping_add(byte as u64)
             .wrapping_mul(0x517c_c1b7_2722_0a95);
     }
+    hash ^= hash >> 32;
+    hash = hash.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    hash ^= hash >> 29;
     if hash == EMPTY_SLOT { 1 } else { hash }
 }
 
