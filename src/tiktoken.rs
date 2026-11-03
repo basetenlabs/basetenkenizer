@@ -152,7 +152,7 @@ fn base64_decode(value: &str) -> Result<Vec<u8>, String> {
     if end == 0
         || end % 4 == 1
         || padding > 2
-        || (padding != 0 && (bytes.len() % 4 != 0 || padding != (4 - end % 4) % 4))
+        || (padding != 0 && (!bytes.len().is_multiple_of(4) || padding != (4 - end % 4) % 4))
     {
         return Err("invalid base64 length or padding".into());
     }
@@ -345,13 +345,13 @@ fn ranks_to_json(
         if !special_ids.insert(token.id) || !special_contents.insert(token.content.as_str()) {
             return Err(Error::Model("duplicate tiktoken added token".into()));
         }
-        if let Some(bytes) = by_id.get(&token.id) {
-            if String::from_utf8_lossy(bytes) != token.content {
-                return Err(Error::Model(format!(
-                    "added token {} conflicts with a tiktoken rank",
-                    token.id
-                )));
-            }
+        if let Some(bytes) = by_id.get(&token.id)
+            && String::from_utf8_lossy(bytes) != token.content
+        {
+            return Err(Error::Model(format!(
+                "added token {} conflicts with a tiktoken rank",
+                token.id
+            )));
         }
     }
     let mut candidates = Vec::new();

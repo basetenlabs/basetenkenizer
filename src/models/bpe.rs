@@ -37,13 +37,13 @@ const INVALID_TOKEN: u32 = u32::MAX;
 #[inline(always)]
 pub(crate) fn pretoken_hash(bytes: &[u8]) -> u64 {
     let mut hash = bytes.len() as u64;
-    let mut chunks = bytes.chunks_exact(8);
-    for chunk in &mut chunks {
+    let (chunks, remainder) = bytes.as_chunks::<8>();
+    for chunk in chunks {
         hash = hash
-            .wrapping_add(u64::from_ne_bytes(chunk.try_into().unwrap()))
+            .wrapping_add(u64::from_ne_bytes(*chunk))
             .wrapping_mul(0x517c_c1b7_2722_0a95);
     }
-    for &byte in chunks.remainder() {
+    for &byte in remainder {
         hash = hash
             .wrapping_add(byte as u64)
             .wrapping_mul(0x517c_c1b7_2722_0a95);

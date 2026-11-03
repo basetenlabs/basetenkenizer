@@ -159,8 +159,9 @@ fn o200k_classes_unpacked() -> Vec<u8> {
 }
 
 fn pack_nibbles(classes: &[u8]) -> Box<[u8]> {
-    let mut packed = vec![0u8; classes.len() / 2].into_boxed_slice();
-    for (i, chunk) in classes.chunks_exact(2).enumerate() {
+    let (chunks, _) = classes.as_chunks::<2>();
+    let mut packed = vec![0u8; chunks.len()].into_boxed_slice();
+    for (i, chunk) in chunks.iter().enumerate() {
         packed[i] = chunk[0] | (chunk[1] << 4);
     }
     packed
