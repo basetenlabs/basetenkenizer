@@ -1748,4 +1748,15 @@ mod tests {
         assert!(cache.get_hashed("piece", hash, &mut out));
         assert_eq!(out, [1, 2]);
     }
+
+    #[test]
+    fn pretoken_hash_uses_every_byte() {
+        let mask = (1usize << FLAT_CACHE_BITS) - 1;
+        let mut slots = std::collections::HashSet::new();
+        for i in 0..8000u32 {
+            let word = format!("ab{i:06}");
+            slots.insert(pretoken_hash(word.as_bytes()) as usize & mask);
+        }
+        assert!(slots.len() > 7000, "{} distinct slots", slots.len());
+    }
 }
