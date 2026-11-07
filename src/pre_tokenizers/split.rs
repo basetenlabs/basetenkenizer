@@ -412,7 +412,14 @@ impl Split {
                 cache.prev_matches.clear();
                 return (Vec::new(), 0);
             }
-            let common_len = common_prefix_len(&cache.prev_input, bytes);
+            let mut common_len = common_prefix_len(&cache.prev_input, bytes);
+            // `\s+(?!\S)` reads the whole whitespace run after a match, so only
+            // reuse matches that end before the shared prefix trailing whitespace
+            while !buffer.is_char_boundary(common_len) {
+                common_len -= 1;
+            }
+            let shared = buffer[..common_len].trim_end_matches(char::is_whitespace);
+            let common_len = shared.len();
 
             if common_len >= INCREMENTAL_MIN_PREFIX && !cache.prev_matches.is_empty() {
                 let reuse_count = cache
@@ -1917,6 +1924,27 @@ mod tests {
             "cache reuse at boundary produced wrong splits; \
              lookahead context was stale"
         );
+    }
+
+    #[test]
+    fn cache_reuse_whitespace_run_past_boundary() {
+        let filler = "abcdefgh ".repeat(600);
+        let input_a = format!("{filler}x   y");
+        let input_b = format!("{filler}x    9");
+
+        let fresh =
+            Split::from_config(&json!({"Regex": LLAMA3_PATTERN}), "Isolated", false).unwrap();
+        let mut pts_expected = PreTokenizedString::from_text(&input_b);
+        fresh.pre_tokenize(&mut pts_expected).unwrap();
+
+        let cached =
+            Split::from_config(&json!({"Regex": LLAMA3_PATTERN}), "Isolated", false).unwrap();
+        let mut pts_a = PreTokenizedString::from_text(&input_a);
+        cached.pre_tokenize(&mut pts_a).unwrap();
+        let mut pts_actual = PreTokenizedString::from_text(&input_b);
+        cached.pre_tokenize(&mut pts_actual).unwrap();
+
+        assert_eq!(pts_texts(&pts_actual), pts_texts(&pts_expected));
     }
 }
 
