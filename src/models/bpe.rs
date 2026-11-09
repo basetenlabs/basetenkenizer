@@ -128,7 +128,8 @@ fn pack_pair(t1: u32, t2: u32) -> u64 {
 
 #[inline(always)]
 fn fx_hash(key: u64) -> u64 {
-    key.wrapping_mul(0x517cc1b727220a95)
+    // The low product bits only depend on the right token; index by the high half.
+    key.wrapping_mul(0x517cc1b727220a95) >> 32
 }
 
 /// FxHash-based [`BuildHasher`] for the token cache.
