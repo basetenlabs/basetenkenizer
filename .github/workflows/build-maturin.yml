@@ -20,8 +20,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  attestations: write
 
 jobs:
   linux:
@@ -189,6 +187,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: [linux, musllinux, windows, macos]
     permissions:
+      contents: read
       id-token: write
       attestations: write
     steps:

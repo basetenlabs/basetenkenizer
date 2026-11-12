@@ -11,6 +11,9 @@ env:
   CARGO_TERM_COLOR: always
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

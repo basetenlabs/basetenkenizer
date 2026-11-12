@@ -11,11 +11,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write
-  attestations: write
 
 jobs:
   build-package:
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/build-maturin.yml
     with:
       publish_pypi: ${{ github.event_name == 'workflow_dispatch' && fromJSON(github.event.inputs.publish) }}
