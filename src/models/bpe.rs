@@ -43,6 +43,9 @@ pub(crate) fn pretoken_hash(bytes: &[u8]) -> u64 {
             .wrapping_add(byte as u64)
             .wrapping_mul(0x517c_c1b7_2722_0a95);
     }
+    hash ^= hash >> 32;
+    hash = hash.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    hash ^= hash >> 29;
     if hash == EMPTY_SLOT { 1 } else { hash }
 }
 
@@ -1854,5 +1857,16 @@ mod tests {
         let mut out = Vec::new();
         assert!(cache.get_hashed("piece", hash, &mut out));
         assert_eq!(out, [1, 2]);
+    }
+
+    #[test]
+    fn pretoken_hash_uses_every_byte() {
+        let mask = (1usize << FLAT_CACHE_BITS) - 1;
+        let mut slots = std::collections::HashSet::new();
+        for i in 0..8000u32 {
+            let word = format!("ab{i:06}");
+            slots.insert(pretoken_hash(word.as_bytes()) as usize & mask);
+        }
+        assert!(slots.len() > 7000, "{} distinct slots", slots.len());
     }
 }
