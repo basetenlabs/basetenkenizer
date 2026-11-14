@@ -18,19 +18,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: chainguard-actions/dtolnay-rust-toolchain@7b7b95556805186e9eb5b44efdafea3a47dbaa56 # v1
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: chainguard-actions/Swatinem-rust-cache@b83da835517599f3f42d100dde7195b7edfb9e30 # v2.9.3
 
-      - uses: actions/setup-python@v5
+      - uses: chainguard-actions/actions-setup-python@ace3254bb5011efbd0650a7120a0441ebd1f9400 # v5.6.0
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Cache Hugging Face tokenizers
-        uses: actions/cache@v4
+        uses: chainguard-actions/actions-cache@1a492a110f951652a0d2d3327bc20ee36867788e # v4
         with:
           path: |
             ~/.cache/huggingface/hub
