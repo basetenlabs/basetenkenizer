@@ -10,10 +10,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
         with:
           ref: main
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: chainguard-actions/dtolnay-rust-toolchain@7b7b95556805186e9eb5b44efdafea3a47dbaa56 # v1
+        with:
+          toolchain: stable
       - name: Verify package
         run: cargo publish -p basetenkenizer --dry-run --locked
       - name: Publish crate

@@ -48,12 +48,12 @@ jobs:
             manylinux: manylinux_2_28
             ft: true
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
+      - uses: chainguard-actions/actions-setup-python@64d43abab37098f001c33499cf9c74a158ff0cfc # v6.3.0
         with:
           python-version: 3.x
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
@@ -69,7 +69,7 @@ jobs:
                 exit 1
             fi
       - name: Build free-threaded wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         if: ${{ matrix.platform.ft }}
         with:
           target: ${{ matrix.platform.target }}
@@ -86,7 +86,7 @@ jobs:
                 exit 1
             fi
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4.6.2
         with:
           name: wheels-linux-${{ matrix.platform.target }}
           path: dist
@@ -105,26 +105,26 @@ jobs:
           - runner: ubuntu-22.04
             target: armv7
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
+      - uses: chainguard-actions/actions-setup-python@64d43abab37098f001c33499cf9c74a158ff0cfc # v6.3.0
         with:
           python-version: 3.x
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: "false"
           manylinux: musllinux_1_2
       - name: Build free-threaded wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist -i python3.14t
           sccache: "false"
           manylinux: musllinux_1_2
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4.6.2
         with:
           name: wheels-musllinux-${{ matrix.platform.target }}
           path: dist
@@ -132,19 +132,19 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
+      - uses: chainguard-actions/actions-setup-python@64d43abab37098f001c33499cf9c74a158ff0cfc # v6.3.0
         with:
           python-version: 3.x
           architecture: x64
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: x64
           args: --release --out dist --find-interpreter
           sccache: "false"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4.6.2
         with:
           name: wheels-windows-x64
           path: dist
@@ -159,24 +159,24 @@ jobs:
           - runner: macos-15
             target: aarch64
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: chainguard-actions/actions-checkout@40e53bf063d4f87f0a6e0a83231c09bcfb22bc19 # v6
+      - uses: chainguard-actions/actions-setup-python@64d43abab37098f001c33499cf9c74a158ff0cfc # v6.3.0
         with:
           python-version: 3.x
       - name: Build wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist --find-interpreter
           sccache: "false"
       - name: Build free-threaded wheels
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out dist -i python3.14t
           sccache: "false"
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: chainguard-actions/actions-upload-artifact@61ae9717c37cd5ac5fcaa5599c0dab961d043ecc # v4.6.2
         with:
           name: wheels-macos-${{ matrix.platform.target }}
           path: dist
@@ -191,14 +191,14 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: chainguard-actions/actions-download-artifact@75db10217d80f4a4c7e15d54b2dd9adfc6c78f83 # v4.3.0
       - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
+        uses: chainguard-actions/actions-attest-build-provenance@0699c27a1665715521269f386b1e718f6f1d861b # v1.4.4
         with:
           subject-path: "wheels-*/*"
       - name: Publish to PyPI
         if: ${{ inputs.publish_pypi }}
-        uses: PyO3/maturin-action@v1
+        uses: chainguard-actions/PyO3-maturin-action@23815a064f2267de38d5031b668fde459a80a7e5 # v1.51.0
         env:
           MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_BASETENKENIZER_TOKEN }}
         with:
